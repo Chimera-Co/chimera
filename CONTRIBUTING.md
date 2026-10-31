@@ -16,7 +16,7 @@ cd chimera
 
 ## What you need
 
-- **Code, tests, docs, console:** any Linux machine with Python 3.11, Node 20 and npm. No Xen needed.
+- **Code, tests, docs, console:** any Linux machine with Python 3.11, Node 22 and npm. No Xen needed.
 - **Running analyses:** a bare-metal Intel host with VT-x and EPT, Debian 12 and Xen 4.19. DRAKVUF does not work
   under nested virtualisation or in cloud VMs. Check the CPU on the host itself:
 
