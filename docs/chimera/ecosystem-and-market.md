@@ -8,7 +8,7 @@
 
 ```mermaid
 flowchart TB
-    subgraph C["CHIMERA — our fork (Chimera-Co/drakvuf-sandbox)"]
+    subgraph C["CHIMERA (Chimera-Co/chimera, built on drakvuf-sandbox)"]
         C1["React 19 UI (rebranded) · evasion API/UI · scoring · PERDEDOR + al-khaser adapters"]
     end
     subgraph D["drakrun = CERT-Polska drakvuf-sandbox v0.21.0 (upstream HEAD 7c328ab)"]

@@ -32,7 +32,7 @@ flowchart LR
     H1H --> H1SH
 ```
 
-- Each arm runs **PERDEDOR, al-khaser and Pafish as samples through the normal analysis path, with the standard DRAKVUF plugin set active** (Codex finding: the existing evasion path never runs DRAKVUF, so its scores say nothing about stealth under instrumentation).
+- Each arm runs **PERDEDOR, al-khaser and Pafish as samples through the normal analysis path, with the standard DRAKVUF plugin set active** (review finding: the existing evasion path never runs DRAKVUF, so its scores say nothing about stealth under instrumentation).
 - n ≥ 5 runs per arm; report per-check detection frequency, not a single score.
 - Telemetry check per arm: the hardened guest must still produce the same plugin coverage as A0 (BGInfo control sample).
 - Timing checks are reported separately: `cpuidmon -s` traps every CPUID and may *worsen* RDTSC-around-CPUID detections. The experiment decides whether `-s` is kept.

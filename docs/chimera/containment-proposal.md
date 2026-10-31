@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-19 · **Status:** applied and verified; see `containment-results-2026-10-19.md` (C-1…C13 PASS, plus implementation changes found during testing: bridge netfilter disabled, Xen physdev rules tolerated by the checker) · **Addresses:** threat-model T2, T3, T6 (risks R1, R2, R3, R11 in `RECON-2026-10-19.md`)
 **Estimated effort:** ~3–4 h including tests · **Reversible:** yes (§6), no reboot required.
-**Review:** v1 was adversarially reviewed by Codex (read-only). Accepted findings are folded in; see §8.
+**Review:** v1 was adversarially reviewed by an independent read-only reviewer. Accepted findings are folded in; see §8.
 
 ## 1. Goal
 
@@ -218,7 +218,7 @@ sudo apt-get purge inetsim                       # optional
 - Guest-output caps and parser hardening (T4), evasion status bug: M3 code fixes.
 - Guest hardening (SMBIOS, CPUID, MAC, devices, hidsim): M4, which needs a new snapshot.
 
-## 8. Changes from v1 (Codex adversarial review, 2026-10-19)
+## 8. Changes from v1 (adversarial review, 2026-10-19)
 
 | Finding | Severity | v2 change |
 |---|---|---|
