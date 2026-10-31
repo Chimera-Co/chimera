@@ -21,7 +21,9 @@ TEAM_RULE = """rule CHIMERA_Test_Marker {
 
 def test_vendored_files_match_their_pins():
     pin = json.loads((RULES / "reversinglabs" / "SOURCE.json").read_text())
-    assert pin["commit"] == "e0a0be54aa1e11ccfd6854e4f19e9476f328fd84" and (RULES / "reversinglabs" / "LICENSE").is_file()
+    upstream = RULES / "reversinglabs" / "upstream"
+    assert (upstream / "LICENSE").is_file(), "submodule missing: git submodule update --init --recursive"
+    assert pin["commit"] == "e0a0be54aa1e11ccfd6854e4f19e9476f328fd84"
     on_disk = {str(p.relative_to(RULES / "reversinglabs")) for p in (RULES / "reversinglabs").rglob("*.yara")}
     assert on_disk == set(pin["files"])  # nothing added or dropped
     for rel, digest in pin["files"].items():

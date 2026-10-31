@@ -26,7 +26,7 @@ COPY --from=build /wheels /tmp/wheels
 RUN pip install --no-index --find-links /tmp/wheels /tmp/wheels/*.whl && pip install pytest==8.3.5
 COPY rules /opt/chimera-static/rules
 RUN python -I -m chimera_static.rules_build /opt/chimera-static/rules /opt/chimera-static/rules.yarc
-# capa rules (pinned, capa-rules/SOURCE.json) and a pre-built rule cache: the runtime root is read-only.
+# capa rules (git submodule, pinned in capa-rules.SOURCE.json) and a pre-built rule cache: the runtime root is read-only.
 # No library signatures are shipped (capa's FLIRT .sig files are not in the pip package): deep.json says so.
 ENV CHIMERA_CAPA_RULES=/opt/chimera-static/capa-rules CHIMERA_CAPA_SIGS=/opt/chimera-static/capa-sigs \
     XDG_CACHE_HOME=/opt/chimera-static/capa-cache
@@ -60,11 +60,11 @@ RUN pip install --no-index --find-links /tmp/wheels /tmp/wheels/*.whl \
  && pip uninstall -y pip setuptools wheel
 
 # YARA rules baked into the image and compiled here: the build fails on zero rules or a compile error.
-# rules.yarc.json records the rule count and each ruleset's pin (rules/<name>/SOURCE.json).
+# rules.yarc.json records the rule count and each ruleset's pin (rules/<name>/SOURCE.json; rules are submodules).
 COPY rules /opt/chimera-static/rules
 RUN python -I -m chimera_static.rules_build /opt/chimera-static/rules /opt/chimera-static/rules.yarc
 
-# capa rules (pinned, capa-rules/SOURCE.json) and a pre-built rule cache: the runtime root is read-only.
+# capa rules (git submodule, pinned in capa-rules.SOURCE.json) and a pre-built rule cache: the runtime root is read-only.
 # No library signatures are shipped (capa's FLIRT .sig files are not in the pip package): deep.json says so.
 ENV CHIMERA_CAPA_RULES=/opt/chimera-static/capa-rules CHIMERA_CAPA_SIGS=/opt/chimera-static/capa-sigs \
     XDG_CACHE_HOME=/opt/chimera-static/capa-cache

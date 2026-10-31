@@ -6,4 +6,10 @@
 	url = https://github.com/mandiant/capa-rules.git
 [submodule "perdedor"]
 	path = perdedor
-	url = https://github.com/clustercoder/perdedor.git
+	url = https://github.com/Chimera-Co/perdedor.git
+[submodule "static_analyzer/capa-rules"]
+	path = static_analyzer/capa-rules
+	url = https://github.com/mandiant/capa-rules.git
+[submodule "static_analyzer/rules/reversinglabs/upstream"]
+	path = static_analyzer/rules/reversinglabs/upstream
+	url = https://github.com/reversinglabs/reversinglabs-yara-rules.git
