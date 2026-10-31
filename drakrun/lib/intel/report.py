@@ -194,7 +194,8 @@ def _offline_stage(directory, config, metadata, report, static, ev, static_path=
 
 def _attribution(directory, config, metadata, report, static, ev, static_path=None):
     """Maltrail family / APT attribution of the network indicators the sample's own processes produced (or that
-    nobody can attribute) and of those in the file; other guest processes' traffic is left out."""
+    nobody can attribute) and of those in the file; other guest processes' traffic is left out.
+    """
     path = Path(getattr(config, "trails_db_path", None) or "")
     if not config.enabled or not path.is_file():
         return None

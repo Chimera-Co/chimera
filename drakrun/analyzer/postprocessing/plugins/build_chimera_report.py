@@ -796,12 +796,18 @@ def build_report(
         )
     # Suspicious trails (dynamic DNS, parking) are listed as IOCs but do not name a family; bare-TLD hits are
     # in attribution["suspicious_tlds"] only.
-    named = [f for f in attribution.get("families", []) if f["category"] != "suspicious"]
+    named = [
+        f for f in attribution.get("families", []) if f["category"] != "suspicious"
+    ]
     for index, family in enumerate(named[:10]):
         claim(
             f"attribution-{index}",
             f"{', '.join(family['indicators'][:3])}"
-            + (f" and {len(family['indicators']) - 3} more" if len(family["indicators"]) > 3 else "")
+            + (
+                f" and {len(family['indicators']) - 3} more"
+                if len(family["indicators"]) > 3
+                else ""
+            )
             + f" {'is' if len(family['indicators']) == 1 else 'are'} listed in Maltrail's {family['family']} trail"
             + (" (APT group)" if family["apt"] else "")
             + ".",

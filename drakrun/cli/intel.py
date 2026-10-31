@@ -86,7 +86,9 @@ def trails_sync_command(log_path):
 
     config = load_config().intel
     if config.trails_db_path is None:
-        raise click.ClickException("Set [intel] trails_db_path to enable Maltrail attribution")
+        raise click.ClickException(
+            "Set [intel] trails_db_path to enable Maltrail attribution"
+        )
     log_path = log_path or config.trails_checkout.parent / "trails-changes.jsonl"
     record = sync(config.trails_checkout, config.trails_db_path, log_path)
     click.echo(
@@ -106,7 +108,9 @@ def trails_status_command():
 
     path = load_config().intel.trails_db_path
     if path is None or not path.exists():
-        click.echo("Maltrail attribution unavailable: index missing (run drakrun intel trails-sync)")
+        click.echo(
+            "Maltrail attribution unavailable: index missing (run drakrun intel trails-sync)"
+        )
         return
     meta = read_meta(path)
     click.echo(

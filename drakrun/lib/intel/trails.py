@@ -295,7 +295,10 @@ def _keys(kind, value, tld=True):
             if char in "=&":
                 keys.append(("path", path + "?" + u.query[: i + 1]))
         if u.query:
-            keys += [("url", host + path + "?" + u.query), ("path", path + "?" + u.query)]
+            keys += [
+                ("url", host + path + "?" + u.query),
+                ("path", path + "?" + u.query),
+            ]
         try:
             keys += _keys("ip", normalize("ip", u.hostname))
         except ValueError:

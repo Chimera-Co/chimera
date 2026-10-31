@@ -168,7 +168,11 @@ class SingleBinaryAdapter(VerifierAdapter):
                 checks=[] if error else checks,
                 raw_artifacts=raw_artifacts,
                 error=f"{self.display_name} did not finish within its time budget"
-                + (f" ({error})." if error else f"; {len(checks)} checks from its partial output."),
+                + (
+                    f" ({error})."
+                    if error
+                    else f"; {len(checks)} checks from its partial output."
+                ),
             )
         status = ToolStatus.error if error else ToolStatus.ok
         return ToolResult(
