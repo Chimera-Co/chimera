@@ -6,6 +6,8 @@ on:
 
 jobs:
   release_artifacts:
+    # Version releases only (tags v*); media releases such as the demo video carry no packages.
+    if: startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -23,9 +25,4 @@ jobs:
             drakvuf-sandbox-whl/drakvuf_sandbox-*.whl
           upload-release-files: true
           release-upload-url: ${{ github.event.release.upload_url }}
-      - name: Publish to PyPi
-        uses: pypa/gh-action-pypi-publish@v1.13.0
-        with:
-          user: __token__
-          password: ${{ secrets.pypi_password }}
-          packages-dir: drakvuf-sandbox-whl/
+      # No PyPI upload: the drakvuf-sandbox package name on PyPI belongs to upstream CERT Polska.

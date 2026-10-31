@@ -1,3 +1,5 @@
+import { DemoVideo } from "../DemoVideo.jsx";
+
 /**
  * Diagrams shared by the Home page and the docs (```diagram <name>``` in a Markdown page).
  * Colours come from the theme tokens through docs.css classes, so every colour scheme and dark mode work.
@@ -424,6 +426,7 @@ export function ContainmentDiagram() {
 }
 
 export const DIAGRAMS = {
+    demo: DemoVideo,
     pipeline: PipelineDiagram,
     architecture: ArchitectureDiagram,
     containment: ContainmentDiagram,

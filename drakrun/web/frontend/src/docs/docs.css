@@ -752,3 +752,25 @@
 .chimera-doc-note > :last-child {
     margin-bottom: 0;
 }
+
+/* Demo video (Home page, docs overview, documentation site) */
+.chimera-demo {
+    margin: 0 0 1.25rem;
+    max-width: 960px;
+}
+
+.chimera-demo__video {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--chimera-border);
+    border-radius: var(--chimera-radius);
+    background: #000;
+    box-shadow: var(--chimera-shadow);
+}
+
+.chimera-demo__caption {
+    margin-top: 0.5rem;
+    color: var(--chimera-text-muted);
+    font-size: 0.9rem;
+}

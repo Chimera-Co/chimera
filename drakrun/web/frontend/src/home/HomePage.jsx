@@ -7,8 +7,10 @@ import {
     faCode,
     faDesktop,
     faEye,
+    faCodeBranch,
     faFolder,
     faGlobe,
+    faPlay,
     faLayerGroup,
     faMemory,
     faMicroscope,
@@ -17,6 +19,7 @@ import {
     faUpload,
 } from "@fortawesome/free-solid-svg-icons";
 import { ChimeraLogo } from "../ChimeraLogo.jsx";
+import { DemoVideo } from "../DemoVideo.jsx";
 import { PipelineDiagram } from "../docs/diagrams.jsx";
 import "../docs/docs.css";
 
@@ -106,7 +109,14 @@ const START = [
     ],
 ];
 
-export default function HomePage() {
+export const REPO_URL = "https://github.com/Chimera-Co/chimera";
+const PERDEDOR_URL = "https://github.com/Chimera-Co/perdedor";
+
+/**
+ * `site` renders the public documentation-site variant (GitHub Pages): no console links, a GitHub link instead,
+ * and the same text, diagrams, video and docs as the console's Home page.
+ */
+export default function HomePage({ site = false }) {
     return (
         <div className="chimera-home">
             <section className="chimera-home__hero">
@@ -128,16 +138,48 @@ export default function HomePage() {
                             verdict and threat intelligence, in one console.
                         </p>
                         <div className="chimera-home__actions">
-                            <Link className="btn btn-primary" to="/upload">
-                                <FontAwesomeIcon icon={faUpload} /> Upload a
-                                sample
-                            </Link>
-                            <Link
-                                className="btn chimera-home__btn-ghost"
-                                to="/"
-                            >
-                                <FontAwesomeIcon icon={faFolder} /> Analyses
-                            </Link>
+                            {site ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        onClick={() =>
+                                            document
+                                                .getElementById("home-demo")
+                                                ?.scrollIntoView({
+                                                    behavior: "smooth",
+                                                })
+                                        }
+                                    >
+                                        <FontAwesomeIcon icon={faPlay} /> Watch
+                                        the demo
+                                    </button>
+                                    <a
+                                        className="btn chimera-home__btn-ghost"
+                                        href={REPO_URL}
+                                    >
+                                        <FontAwesomeIcon icon={faCodeBranch} />{" "}
+                                        Source on GitHub
+                                    </a>
+                                </>
+                            ) : (
+                                <>
+                                    <Link
+                                        className="btn btn-primary"
+                                        to="/upload"
+                                    >
+                                        <FontAwesomeIcon icon={faUpload} />{" "}
+                                        Upload a sample
+                                    </Link>
+                                    <Link
+                                        className="btn chimera-home__btn-ghost"
+                                        to="/"
+                                    >
+                                        <FontAwesomeIcon icon={faFolder} />{" "}
+                                        Analyses
+                                    </Link>
+                                </>
+                            )}
                             <Link
                                 className="btn chimera-home__btn-ghost"
                                 to="/docs"
@@ -207,11 +249,32 @@ export default function HomePage() {
                                 never during a real detonation.
                             </li>
                         </ul>
-                        <Link to="/evasion" className="chimera-home__more">
-                            Run a verification scan{" "}
-                            <FontAwesomeIcon icon={faArrowRight} />
-                        </Link>
+                        {site ? (
+                            <a
+                                href={PERDEDOR_URL}
+                                className="chimera-home__more"
+                            >
+                                PERDEDOR on GitHub{" "}
+                                <FontAwesomeIcon icon={faArrowRight} />
+                            </a>
+                        ) : (
+                            <Link to="/evasion" className="chimera-home__more">
+                                Run a verification scan{" "}
+                                <FontAwesomeIcon icon={faArrowRight} />
+                            </Link>
+                        )}
                     </div>
+                </section>
+
+                <section id="home-demo" aria-labelledby="home-demo-title">
+                    <h2 id="home-demo-title" className="chimera-home__h2">
+                        See it in action
+                    </h2>
+                    <p className="chimera-home__note">
+                        A ten-minute walkthrough of the platform, recorded on
+                        the live console.
+                    </p>
+                    <DemoVideo />
                 </section>
 
                 <section aria-labelledby="home-pipeline">

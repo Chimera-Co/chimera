@@ -21,7 +21,7 @@ systemctl enable --now redis-server
 Deploy from a root-owned checkout, so nothing an ordinary user can change is executed as root:
 
 ```bash
-git clone --recurse-submodules <repository URL> /opt/chimera/src
+git clone --recurse-submodules https://github.com/Chimera-Co/chimera.git /opt/chimera/src
 cd /opt/chimera/src
 make                      # builds the console (npm ci, vite build), drakshell and get-explorer-pid, then the wheel
 ```
@@ -98,6 +98,6 @@ npm run build                                           # production bundle into
 
 Documentation pages are Markdown files in `src/docs/content/`. The file name `NN-slug.md` sets the order and the
 URL (`/docs/slug`); the front matter sets the sidebar title and group. Links to other pages are written as
-`slug.md`; diagrams are `diagram pipeline`, `diagram architecture` and `diagram containment` code fences.
+`slug.md`; diagrams are `diagram pipeline`, `diagram architecture` and `diagram containment` code fences, and `diagram demo` embeds the demo video. `npm run build:site` builds the same Home and Docs pages as the static documentation site (`dist-site/`, published to GitHub Pages by `.github/workflows/pages.yml`).
 
 Next: [network containment](build-network.md).

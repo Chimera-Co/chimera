@@ -62,7 +62,7 @@ apt install ./dist/xen-upstream-4.19.2.deb
 ```
 
 > The checkout path `/opt/chimera/src` is created in [step 3](build-console.md); clone the repository there
-> first (`git clone --recurse-submodules <repository URL> /opt/chimera/src`) so the patches are available.
+> first (`git clone --recurse-submodules https://github.com/Chimera-Co/chimera.git /opt/chimera/src`) so the patches are available.
 > If `make dist-tools` asks for Git credentials, Xen's pinned OVMF revision points at a broken submodule URL:
 > set `OVMF_UPSTREAM_URL` to `https://github.com/tianocore/edk2.git` and a current stable tag in `Config.mk`.
 

@@ -23,6 +23,14 @@ verification, and this console. It is developed by Mantek Singh Burn, Anusha Tiw
 ```diagram pipeline
 ```
 
+## See it in action
+
+A ten-minute walkthrough of the platform: submitting a sample, watching the guest live, reading the report with
+its verdict and threat intelligence, the static analysis and the evasion self-test.
+
+```diagram demo
+```
+
 ## How these docs are organised
 
 | Section | Read it for |

@@ -69,3 +69,38 @@ it("links only to documentation pages that exist", () => {
     expect(docLinks.length).toBeGreaterThan(0);
     for (const href of docLinks) expect(slugs.has(href), href).toBe(true);
 });
+
+it("shows the demo video with a local source and poster", () => {
+    home();
+    expect(
+        screen.getByRole("heading", { name: "See it in action" }),
+    ).toBeInTheDocument();
+    const video = screen.getByLabelText("CHIMERA platform demo video");
+    expect(video).toHaveAttribute("poster", "/chimera-demo-poster.jpg");
+    expect(video.querySelector("source")).toHaveAttribute(
+        "src",
+        "/chimera-demo.mp4",
+    );
+});
+
+it("documentation-site variant links to GitHub instead of the console", () => {
+    render(
+        <MemoryRouter>
+            <HomePage site />
+        </MemoryRouter>,
+    );
+    expect(screen.queryByRole("link", { name: /Upload a sample/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Analyses$/ })).toBeNull();
+    expect(
+        screen.getByRole("button", { name: /Watch the demo/ }),
+    ).toBeInTheDocument();
+    expect(
+        screen.getByRole("link", { name: /Source on GitHub/ }),
+    ).toHaveAttribute("href", "https://github.com/Chimera-Co/chimera");
+    expect(
+        screen.getByRole("link", { name: /PERDEDOR on GitHub/ }),
+    ).toHaveAttribute("href", "https://github.com/Chimera-Co/perdedor");
+    expect(
+        screen.getByRole("link", { name: /^Documentation$/ }),
+    ).toHaveAttribute("href", "/docs");
+});
