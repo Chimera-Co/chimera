@@ -161,7 +161,7 @@ checks green, never upload samples to third parties, and keep samples, keys and 
 
 CHIMERA was built by **Shreyas Tekawade** ([@shreyastek](https://github.com/shreyastek)), **Mantek Singh Burn**
 ([@clustercoder](https://github.com/clustercoder)) and **Anusha Tiwari**
-([@anushatiwari27](https://github.com/anushatiwari27)), and is maintained by Shreyas Tekawade.
+([@anushatiwari27](https://github.com/anushatiwari27)), and is maintained by Shreyas Tekawade and Mantek Singh Burn.
 
 It stands on [DRAKVUF Sandbox](https://github.com/CERT-Polska/drakvuf-sandbox) by CERT Polska,
 [DRAKVUF](https://github.com/tklengyel/drakvuf) and LibVMI by Tamas K Lengyel, [Xen](https://xenproject.org/),
