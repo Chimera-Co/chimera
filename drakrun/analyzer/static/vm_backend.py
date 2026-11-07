@@ -178,9 +178,12 @@ def _mark_used() -> None:
     (RUN_DIR / LAST_JOB).touch()
 
 
-def stop_if_idle(settings, now: Optional[float] = None) -> str:
-    """Shut the VM down when no job has used it for vm_idle_shutdown_s; never while a job holds the lock.
-    The next job boots it again (vm_autostart)."""
+def stop_if_idle(
+    settings, now: Optional[float] = None, idle_s: Optional[float] = None
+) -> str:
+    """Shut the VM down when no job has used it for vm_idle_shutdown_s (or idle_s, sooner, when another guest
+    needs the memory); never while a job holds the lock. The next job boots it again (vm_autostart).
+    """
     if settings.vm_idle_shutdown_s <= 0:
         return "idle shutdown off"
     with _vm_lock(blocking=False) as locked:
@@ -194,7 +197,7 @@ def stop_if_idle(settings, now: Optional[float] = None) -> str:
         except FileNotFoundError:
             _mark_used()  # running but never used since this mechanism started: start the clock now
             return "idle clock started"
-        if idle < settings.vm_idle_shutdown_s:
+        if idle < (settings.vm_idle_shutdown_s if idle_s is None else idle_s):
             return f"in use ({idle:.0f}s idle)"
         logger.info(
             "Stopping static-analysis VM %s after %.0fs idle", settings.vm_name, idle

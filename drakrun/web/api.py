@@ -1,5 +1,6 @@
 import logging
 import pathlib
+import re
 import uuid
 
 from flask import Response, jsonify, request
@@ -8,6 +9,7 @@ from rq.exceptions import NoSuchJobError
 from rq.job import Job, JobStatus
 
 from drakrun.analyzer.analysis_metadata import AnalysisMetadata, FileMetadata
+from drakrun.analyzer.mobile.worker import enqueue_mobile
 from drakrun.analyzer.postprocessing.indexer import (
     get_log_index_for_process,
     get_plugin_names_for_process,
@@ -45,6 +47,7 @@ from drakrun.web.schema import (
     KartonResultsUploadPath,
     KartonResultsUploadResponse,
     LogsRequestPath,
+    MobileScreenPath,
     ProcessInfoRequestPath,
     ProcessLogsRequestPath,
     ScreenshotRequestPath,
@@ -78,7 +81,16 @@ def upload_sample(form: OnlineUploadForm):
     intel_online = (
         config.intel.online_default if form.intel_online is None else form.intel_online
     )
-    if form.mode == "static-only":
+    # Android "combined": the static-only record (MobSF's static scan) plus a run on the mobile queue.
+    android_dynamic = form.guest_os == "android" and form.mode == "combined"
+    if android_dynamic and not config.mobile.enabled:
+        return (
+            jsonify(
+                {"error": "Android dynamic analysis is not enabled on this server"}
+            ),
+            400,
+        )
+    if form.mode == "static-only" or android_dynamic:
         if not config.static.enabled:
             return jsonify({"error": "static analysis is disabled on this server"}), 400
         for field in (
@@ -95,10 +107,15 @@ def upload_sample(form: OnlineUploadForm):
                     400,
                 )
 
-    if form.guest_os in ("android", "ios") and form.mode != "static-only":
+    if form.guest_os in ("android", "ios") and not (
+        form.mode == "static-only" or android_dynamic
+    ):
         return (
             jsonify(
-                {"error": "mobile apps are analysed statically only (mode static-only)"}
+                {
+                    "error": "iOS apps are analysed statically only (mode static-only); "
+                    "Android apps take static-only or combined"
+                }
             ),
             400,
         )
@@ -109,7 +126,11 @@ def upload_sample(form: OnlineUploadForm):
     if not timeout:
         timeout = config.drakrun.default_timeout
     clock_scale = form.clock_scale or 1
-    if form.mode != "static-only":
+    if android_dynamic:
+        timeout = form.timeout or config.mobile.default_run_s
+        if not 60 <= timeout <= 1800:
+            return jsonify({"error": "Android run time must be 60-1800 s"}), 400
+    elif form.mode != "static-only":
         problem = validate_time_options(timeout, clock_scale, config.analysis_time)
         if problem is None and (clock_scale > 1 or form.sleep_skip):
             if form.guest_os != "windows":
@@ -141,7 +162,7 @@ def upload_sample(form: OnlineUploadForm):
         # Static analysis starts now, beside the detonation (stages its own copy before
         # the upload may be moved to S3 and deleted below). Never blocks the upload.
         try:
-            if form.mode == "combined":
+            if form.mode == "combined" and not android_dynamic:
                 stage_and_enqueue(
                     job_id, tmp_upload_path, sample_filename, redis, config.static
                 )
@@ -156,14 +177,19 @@ def upload_sample(form: OnlineUploadForm):
             _write_json(
                 intel_directory, "online-options.json", {"intel_online": intel_online}
             )
-        if form.mode == "static-only":
+        if form.mode == "static-only" or android_dynamic:
             analysis_options = OnlineAnalysisOptions(
                 intel_online=intel_online,
                 mode=form.mode,
+                guest_os=form.guest_os,
                 plugins=[],
                 net_enable=False,
                 sample_filename=sample_filename,
             )
+            if android_dynamic:
+                enqueue_mobile(
+                    job_id, tmp_upload_path, sample_filename, timeout, redis, config
+                )
             enqueue_static_only(
                 job_id, tmp_upload_path, file_metadata, analysis_options, redis, config
             )
@@ -546,6 +572,32 @@ def static_mobsf_source(path: AnalysisRequestPath):
     return response
 
 
+@api.get("/mobile/<task_uid>", responses={404: APIErrorResponse})
+def mobile_dynamic(path: AnalysisRequestPath):
+    """Android dynamic analysis (chimera-mobile-dynamic/1): status while queued or running, then the result."""
+    return send_entity_file(
+        path.task_uid,
+        "mobile-dynamic.json",
+        "application/json",
+        None,  # mobile results always stay on the host (not in S3)
+        base_dir=ANALYSES_DIR,
+    )
+
+
+@api.get("/mobile/<task_uid>/screen/<name>", responses={404: APIErrorResponse})
+def mobile_screen(path: MobileScreenPath):
+    """One screenshot of the Android run (mobile-screens/NN.png, as listed in mobile-dynamic.json)."""
+    if not re.fullmatch(r"[0-9]{2}\.png", path.name):
+        return jsonify({"error": "Screenshot not found"}), 404
+    return send_entity_file(
+        path.task_uid,
+        f"mobile-screens/{path.name}",
+        "image/png",
+        None,
+        base_dir=ANALYSES_DIR,
+    )
+
+
 @api.get("/features/<task_uid>", responses={404: APIErrorResponse})
 def features(path: AnalysisRequestPath):
     return send_analysis_file(
@@ -693,7 +745,11 @@ def chimera_report_iocs_csv(path: AnalysisRequestPath):
 
 @api.get("/analysis-time")
 def analysis_time_settings():
-    return jsonify(public_settings(config.analysis_time))
+    settings = public_settings(config.analysis_time)
+    # Android apps can also run in the Android guest ([mobile]), for this many seconds by default.
+    settings["mobile_dynamic"] = config.mobile.enabled
+    settings["mobile_run_s"] = config.mobile.default_run_s
+    return jsonify(settings)
 
 
 @api.get("/intel/providers")

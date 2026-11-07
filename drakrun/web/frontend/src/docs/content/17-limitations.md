@@ -15,8 +15,9 @@ group: Project
 - **Simulated internet.** INetSim answers every protocol it knows with generic content. Malware that needs its
   real command-and-control server, or checks a response's content, does not get far; this is the price of never
   reaching the internet.
-- **Mobile apps are static only.** Android and iOS apps are analysed with MobSF but never run, and the classifier
-  does not score them.
+- **Mobile apps.** iOS apps are static only. Android apps run in an Android 9 x86_64 guest: apps with only ARM
+  native code or that need Google Play services do not get far, and MobSF drives the app generically (activities
+  and random taps), so behaviour behind a login may not show. The classifier does not score mobile apps.
 - **Linux is younger than Windows.** No TLS key export, memory-dump coverage still to be verified across sample
   types, the guest kernel and its profile must match exactly, and Linux evasion scans cannot yet run with DRAKVUF
   attached.
@@ -56,7 +57,7 @@ group: Project
 | URL analysis mode | Submit a URL; the guest's browser opens it, with the same tracing and containment |
 | Deeper anti-evasion | WMI sensor values, CPUID exit timing, ACPI table contents, a natural launch parent |
 | Linux dynamic analysis maturity | TLS keys, verified memory dumps, DRAKVUF-attached Linux evasion scans |
-| Mobile dynamic analysis | Android in an x86 HVM guest under Xen with its own instrumentation; iOS needs virtual devices or hardware |
+| iOS dynamic analysis | MobSF's iOS dynamic analyzer on Corellium virtual devices, as an opt-in cloud option (the app leaves the host) |
 | Xen 4.19.6 upgrade | Rebuild on the current 4.19 point release with the CHIMERA patch and rerun the reliability check |
 | Guest clock acceleration | Making guest time pass faster, so long sleeps end sooner. Tested and dropped for now: the Windows guest keeps time with the HPET and the ACPI PM timer, not the TSC, so scaling the TSC alone does not speed up its clock |
 | capa on long runs | Keep capa TTPs for long analyses, for example by running capa on the sample's own process tree |

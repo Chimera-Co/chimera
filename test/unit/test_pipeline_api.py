@@ -137,6 +137,29 @@ def test_static_only_skips_the_vm_stages(pipeline):
     assert got["deep"] == "skipped"  # capa/FLOSS only read PE and ELF
 
 
+def test_android_combined_reports_the_android_run(pipeline):
+    uid = str(uuid.uuid4())
+    options = {"mode": "combined", "guest_os": "android"}
+    write(pipeline.analyses / uid, "metadata.json", {"status": "finished", "options": options})
+    pipeline.jobs[uid] = job("started")
+    got = states(pipeline.client.get(f"/api/pipeline/{uid}"))
+    assert got["static"] == "running" and got["dynamic"] == "pending"
+    assert got["postprocess"] == "skipped"
+    write(
+        pipeline.analyses / uid,
+        "mobile-dynamic.json",
+        {"status": "finished", "package": "com.example.app"},
+    )
+    response = pipeline.client.get(f"/api/pipeline/{uid}")
+    dynamic = next(s for s in response.json["stages"] if s["id"] == "dynamic")
+    assert dynamic == {
+        "id": "dynamic",
+        "label": "Dynamic analysis (Android)",
+        "state": "done",
+        "detail": "com.example.app",
+    }
+
+
 def test_failed_static_pass_is_reported(pipeline):
     uid = str(uuid.uuid4())
     write(pipeline.analyses / uid, "metadata.json", {"status": "finished"})

@@ -14,7 +14,7 @@ class APIErrorResponse(BaseModel):
 class UploadFileForm(BaseModel):
     mode: Literal["combined", "dynamic-only", "static-only"] = "combined"
     file: FileStorage
-    # android and ios are static-only: MobSF reads the app, nothing runs it.
+    # android: static-only, or combined (MobSF static + a run in the Android guest, [mobile]); ios: static-only.
     guest_os: GuestOS | Literal["android", "ios"] = Field(
         default="windows", description="Guest operating system, or a mobile platform"
     )
@@ -83,6 +83,10 @@ class AnalysisRequestPath(BaseModel):
     task_uid: Annotated[str, AfterValidator(lambda x: str(uuid.UUID(x, version=4)))] = (
         Field(description="Unique analysis ID")
     )
+
+
+class MobileScreenPath(AnalysisRequestPath):
+    name: str = Field(description="Screenshot file name (NN.png)")
 
 
 class AnalysisFileRequestQuery(BaseModel):

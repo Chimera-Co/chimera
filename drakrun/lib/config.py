@@ -208,6 +208,29 @@ class StaticConfigSection(BaseModel):
     mobsf_vm_memory_mb: int = Field(default=2816, ge=1024)
 
 
+class MobileConfigSection(BaseModel):
+    """Android dynamic analysis (scripts/chimera/mobile/, drakrun/analyzer/mobile/): an Android-x86 HVM guest
+    on its own drakrun network (INetSim only), driven by MobSF in the mobile VM, a second instance of the
+    static VM image with one NIC on that network. Nothing of it runs in dom0 except Xen and the bridge.
+    """
+
+    enabled: bool = False
+    # drakrun network id: bridge drak<vm_id>, 10.13.<vm_id>.0/24, Android at .2, the mobile VM at .3.
+    vm_id: int = Field(default=9, ge=3, le=250)
+    store: str = "/var/lib/chimera-mobile"
+    android_memory_mb: int = Field(default=3072, ge=2048)
+    android_vcpus: int = Field(default=2, ge=1, le=8)
+    mobsf_image: str = "localhost/chimera-mobsf-dynamic:4.5.3"
+    mobsf_vm_memory_mb: int = Field(default=3584, ge=2048)
+    mobsf_container_memory_mb: int = Field(default=2816, ge=1024)
+    # Seconds the app runs (activity tester, monkey, screenshots) after install and Frida.
+    default_run_s: int = Field(default=180, ge=60, le=1800)
+    # Android boot, MobSF start, the in-VM static scan and stop/report on top of the run time.
+    overhead_s: int = Field(default=900, ge=300)
+    vm_boot_timeout_s: float = Field(default=180, gt=0, allow_inf_nan=False)
+    result_disk_mb: int = Field(default=96, ge=16)
+
+
 class ScreenshotConfigSection(BaseModel):
     # VNC capture from dom0; nothing runs in the guest. A frame is kept when its
     # perceptual hash differs from the last kept one by more than diff_threshold
@@ -363,6 +386,7 @@ class DrakrunConfig(BaseSettings):
     classifier: ClassifierConfigSection = Field(default_factory=ClassifierConfigSection)
     intel: IntelConfigSection = Field(default_factory=IntelConfigSection)
     static: StaticConfigSection = Field(default_factory=StaticConfigSection)
+    mobile: MobileConfigSection = Field(default_factory=MobileConfigSection)
     memdump: MemdumpConfigSection = MemdumpConfigSection()
     screenshots: ScreenshotConfigSection = Field(
         default_factory=ScreenshotConfigSection

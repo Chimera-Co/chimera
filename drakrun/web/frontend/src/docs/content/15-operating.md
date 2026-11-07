@@ -10,7 +10,7 @@ Open **Upload sample** in the sidebar (or `POST /api/upload`).
 
 | Option | Meaning |
 |---|---|
-| Platform | Windows 10, Linux (Debian 12 desktop), Android APK or iOS IPA. Mobile apps are static-only |
+| Platform | Windows 10, Linux (Debian 12 desktop), Android APK or iOS IPA. iOS apps are static only; Android apps take Combined (static plus a run in the Android guest) or Static only |
 | Mode | **Combined** (static and dynamic, then a fused verdict), **Dynamic only**, **Static only** |
 | Analysis time | How long the sample runs: 5 minutes to 24 hours, or a custom length, up to `[analysis_time] max_timeout_s`. A run is refused if the disk lacks room for it |
 | Shorten long sleeps | Experimental, Windows only, off by default: `delaymon` cuts the sample's own sleeps over 10 s down to 1 s. A sample can notice this |

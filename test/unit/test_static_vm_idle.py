@@ -46,3 +46,14 @@ def test_first_check_starts_the_clock_and_off_means_off(tmp_path, monkeypatch):
     assert vm_backend.stop_if_idle(settings(idle=0)) == "idle shutdown off"
     setup(tmp_path, monkeypatch, running=False)
     assert vm_backend.stop_if_idle(settings()) == "not running"
+
+
+def test_stops_sooner_when_another_guest_needs_the_memory(tmp_path, monkeypatch):
+    calls = setup(tmp_path, monkeypatch)
+    vm_backend._mark_used()
+    assert vm_backend.stop_if_idle(settings(), idle_s=30).startswith("in use")
+    old = time.time() - 60
+    os.utime(tmp_path / vm_backend.LAST_JOB, (old, old))
+    assert vm_backend.stop_if_idle(settings(), idle_s=30) == "stopped"
+    assert vm_backend.stop_if_idle(settings(0), idle_s=30) == "idle shutdown off"
+    assert len(calls) == 1

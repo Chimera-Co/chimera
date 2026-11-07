@@ -277,6 +277,8 @@ def test_analysis_time_settings_endpoint(upload):  # noqa: F811
         "clock_scale_max": 60,
         "sleep_skip_above_ms": 10000,
         "sleep_skip_to_ms": 1000,
+        "mobile_dynamic": False,
+        "mobile_run_s": 180,
     }
 
 

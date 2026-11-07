@@ -86,6 +86,8 @@ def pipeline(analysis_id: str) -> Optional[dict]:
         meta = analysis_job_to_metadata(vm_job).store_to_dict()
     options = meta.get("options") or {}
     mode = options.get("mode", "combined")
+    # Android "combined" is a static-only record plus a run on the mobile queue (mobile-dynamic.json)
+    mobile = options.get("guest_os") in ("android", "ios")
     status = meta.get("status")
     substatus = meta.get("substatus")
     if vm_job is not None:
@@ -118,11 +120,27 @@ def pipeline(analysis_id: str) -> Optional[dict]:
             detail,
         )
     else:
-        job_id = analysis_id if mode == "static-only" else f"static-{analysis_id}"
+        static_record = mode == "static-only" or mobile
+        job_id = analysis_id if static_record else f"static-{analysis_id}"
         add("static", "Static analysis", _from_job(_job_state(job_id)))
 
     if mode == "static-only":
         add("dynamic", "Dynamic analysis (VM)", "skipped", "static-only analysis")
+        add("postprocess", "Postprocessing", "skipped")
+    elif mobile:
+        run = _read_json(analysis_dir / "mobile-dynamic.json") or {}
+        state = {
+            "queued": "queued",
+            "running": "running",
+            "finished": "done",
+            "failed": "failed",
+        }.get(run.get("status"), "pending")
+        add(
+            "dynamic",
+            "Dynamic analysis (Android)",
+            state,
+            run.get("error") or run.get("package") or "",
+        )
         add("postprocess", "Postprocessing", "skipped")
     else:
         dyn = {

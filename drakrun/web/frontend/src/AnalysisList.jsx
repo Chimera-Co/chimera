@@ -104,7 +104,7 @@ function AnalysisListTable() {
         <div className="datatable-container">
             <div className="d-flex flex-wrap gap-2 mb-3">
                 {Object.entries({
-                    os: ["windows", "linux"],
+                    os: ["windows", "linux", "android", "ios"],
                     status: [
                         "created",
                         "queued",

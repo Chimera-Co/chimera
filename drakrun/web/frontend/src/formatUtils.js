@@ -37,7 +37,25 @@ export function fromTimestamp(timestamp) {
     return new Date(timestamp * 1000);
 }
 
-const GUEST_OS_LABELS = { windows: "Windows 10", linux: "Debian 12 (Linux)" };
+const GUEST_OS_LABELS = {
+    windows: "Windows 10",
+    linux: "Debian 12 (Linux)",
+    android: "Android 9 (MobSF)",
+};
+
+/**
+ * Whether an analysis has no drakrun VM run and shows the static workspace: static-only uploads and mobile apps
+ * (an Android "combined" upload is a static record plus a run in the Android guest, shown on its own tab).
+ *
+ * @param {Object} analysis Analysis metadata (options.mode, options.guest_os)
+ * @returns {Boolean}
+ */
+export function isStaticRecord(analysis) {
+    return (
+        analysis.options?.mode === "static-only" ||
+        ["android", "ios"].includes(analysis.options?.guest_os)
+    );
+}
 
 /**
  * Which sandbox an analysis ran in, e.g. "Windows 10 · vm-1" or "Debian 12 (Linux) · vm-2".

@@ -12,6 +12,7 @@ from .install import install
 from .intel import intel
 from .intel_worker import intel_worker
 from .make_profile import make_profile
+from .mobile_worker import mobile_worker
 from .modify_vm0 import modify_vm0
 from .mount import mount
 from .postinstall import postinstall
@@ -45,6 +46,7 @@ main.add_command(postinstall)
 main.add_command(vm_start)
 main.add_command(vm_stop)
 main.add_command(worker)
+main.add_command(mobile_worker)
 main.add_command(evasion_worker)
 main.add_command(static_worker)
 main.add_command(static_vm_idle)

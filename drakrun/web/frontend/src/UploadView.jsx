@@ -107,10 +107,12 @@ function UploadForm() {
     }, []);
     const isStatic = mode === "static-only";
     const isLinux = guestOs === "linux";
-    // Mobile apps are not run: an APK or IPA goes through the static analyzer and MobSF (no network).
+    // An APK or IPA goes through the static analyzer and MobSF (no network). With [mobile] enabled an APK
+    // also runs in the Android guest ("combined"); IPAs are static only.
     const isAndroid = guestOs === "android";
     const isIos = guestOs === "ios";
     const isMobile = isAndroid || isIos;
+    const androidDynamic = Boolean(timeSettings?.mobile_dynamic);
     const [extraOptionsCollapsed, setExtraOptionsCollapsed] = useState(true);
     const navigate = useNavigate();
 
@@ -128,6 +130,7 @@ function UploadForm() {
 
         if (
             form.get("mode") !== "static-only" &&
+            form.get("guest_os") !== "android" &&
             form.getAll("plugins").length === 0
         ) {
             formErrors["plugins"] = "You need to pick at least one plugin";
@@ -201,15 +204,25 @@ function UploadForm() {
                     archive_entry_path: form.get("archive_entry_path"),
                 };
                 const jobData = await uploadSample(
-                    payload.mode === "static-only"
+                    payload.guest_os === "android" &&
+                        payload.mode === "combined"
                         ? {
                               file: payload.file,
                               mode: payload.mode,
+                              guest_os: payload.guest_os,
                               ...(intelSettings
                                   ? { intel_online: payload.intel_online }
                                   : {}),
                           }
-                        : payload,
+                        : payload.mode === "static-only"
+                          ? {
+                                file: payload.file,
+                                mode: payload.mode,
+                                ...(intelSettings
+                                    ? { intel_online: payload.intel_online }
+                                    : {}),
+                            }
+                          : payload,
                 );
                 const jobId = jobData["task_uid"];
                 navigate(`/analysis/${jobId}`);
@@ -235,8 +248,11 @@ function UploadForm() {
                     onChange={(ev) => {
                         const next = ev.target.value;
                         setGuestOs(next);
-                        const mobile = next === "android" || next === "ios";
-                        if (mobile) setMode("static-only");
+                        if (next === "android")
+                            setMode(
+                                androidDynamic ? "combined" : "static-only",
+                            );
+                        else if (next === "ios") setMode("static-only");
                         else if (isMobile) setMode("combined");
                         setExtractArchive(false);
                         setFormErrors({});
@@ -246,19 +262,30 @@ function UploadForm() {
                     <option value="windows">Windows 10</option>
                     <option value="linux">Linux (Debian 12 desktop)</option>
                     <option value="android">
-                        Android APK (static analysis and MobSF)
+                        {androidDynamic
+                            ? "Android APK (MobSF static and dynamic)"
+                            : "Android APK (static analysis and MobSF)"}
                     </option>
                     <option value="ios">
                         iOS IPA (static analysis and MobSF)
                     </option>
                 </select>
-                {isMobile ? (
+                {isAndroid && androidDynamic ? (
+                    <div className="form-text">
+                        Combined: MobSF examines the app (in a VM with no
+                        network), then runs it in an Android 9 guest for{" "}
+                        {timeSettings.mobile_run_s} s with Frida hooks, the
+                        activity tester and simulated taps, behind the simulated
+                        Internet. Static only skips the run. The classifier is
+                        not used for mobile apps.
+                    </div>
+                ) : isMobile ? (
                     <div className="form-text">
                         The app is not run: CHIMERA's static analyzer and MobSF
                         (in a container with no network) examine it, and the
                         classifier is not used for mobile apps. Dynamic{" "}
                         {isIos ? "iOS" : "Android"} analysis is not available
-                        yet.
+                        {isIos ? " yet" : " on this server"}.
                     </div>
                 ) : null}
             </div>
@@ -274,7 +301,7 @@ function UploadForm() {
                 />
                 <FormError errors={formErrors} field="form-file" />
             </div>
-            {!isStatic && (
+            {!isStatic && !isMobile && (
                 <>
                     <AnalysisTimeOptions
                         windows={!isLinux}
@@ -590,15 +617,19 @@ function UploadForm() {
                 <label htmlFor="analysis-mode" className="me-2">
                     Mode
                 </label>
-                {isMobile ? (
+                {isMobile && !(isAndroid && androidDynamic) ? (
                     <input type="hidden" name="mode" value="static-only" />
                 ) : null}
                 <select
                     id="analysis-mode"
-                    name={isMobile ? undefined : "mode"}
+                    name={
+                        isMobile && !(isAndroid && androidDynamic)
+                            ? undefined
+                            : "mode"
+                    }
                     className="form-select w-auto me-3"
                     value={mode}
-                    disabled={isMobile}
+                    disabled={isMobile && !(isAndroid && androidDynamic)}
                     onChange={(ev) => {
                         setMode(ev.target.value);
                         setFormErrors({});
@@ -606,7 +637,9 @@ function UploadForm() {
                     }}
                 >
                     <option value="combined">Combined</option>
-                    <option value="dynamic-only">Dynamic only</option>
+                    {isMobile ? null : (
+                        <option value="dynamic-only">Dynamic only</option>
+                    )}
                     <option value="static-only">Static only</option>
                 </select>
                 <button

@@ -190,6 +190,12 @@ export async function getMobsfSource({ analysisId, path, signal }) {
 }
 
 // MobSF APK scan (chimera-mobsf/1); 404 until it has run, or for anything but an APK
+// Android dynamic analysis (chimera-mobile-dynamic/1): queued, running, finished or failed.
+export async function getMobileDynamic({ analysisId }) {
+    const request = await axios.get(`/mobile/${analysisId}`);
+    return request.data;
+}
+
 export async function getMobsf({ analysisId }) {
     const request = await axios.get(`/static/${analysisId}/mobsf`);
     return request.data;

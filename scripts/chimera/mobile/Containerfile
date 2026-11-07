@@ -1,0 +1,9 @@
+# MobSF for CHIMERA's Android dynamic analysis: the static image (scripts/chimera/mobsf) plus what the dynamic
+# analyzer would otherwise download at first use. Runs only inside the mobile VM, which has no route to the
+# Internet: MobSF's own downloads would fail there.
+#   sudo scripts/chimera/mobile/build-mobsf-dynamic.sh
+FROM localhost/chimera-mobsf:4.5.3
+# frida-server matching MobSF's Frida (17.18.0), x86_64 for the Android-x86 guest; MobSF pushes it to /system.
+COPY --chown=mobsf:mobsf frida-server-17.18.0-android-x86_64 /home/mobsf/.MobSF/downloads/frida-server-17.18.0-android-x86_64
+# mitmproxy's CA, which MobSF installs into the guest's system store; made on first start, so make it here.
+RUN timeout 15 mitmdump --listen-port 0 >/dev/null 2>&1; test -f /home/mobsf/.mitmproxy/mitmproxy-ca-cert.pem

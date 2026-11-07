@@ -60,12 +60,14 @@ under a lock, and `chimera-static-vm-idle.timer` (every 2 minutes) shuts it down
 `[static] vm_idle_shutdown_s` (600 s by default; 0 keeps it running). The idle check takes the same lock without
 waiting, so it never stops the VM during a job. While it is down its 3584 MB go back to Xen, which is what lets a
 Windows (5120 MB) and a Linux (4096 MB) detonation run at the same time on this 16 GB host. It is still restarted
-after every 100 jobs and after any unhealthy job.
+after every 100 jobs and after any unhealthy job. An Android dynamic run that is short of memory stops it sooner,
+once it has been idle for 30 s ([mobile-dynamic.md](mobile-dynamic.md)).
 
 ## Mobile apps: Android APK and iOS IPA (MobSF)
 
 Choose **Android APK** or **iOS IPA** as the platform on the upload page (or send `guest_os=android|ios` with
-`mode=static-only`; any other mode is refused). Mobile apps are never run. The fast pass identifies the file (an
+`mode=static-only`; Android also takes `mode=combined`, which adds a run in the Android guest, see
+[mobile-dynamic.md](mobile-dynamic.md)). This section covers the static part. The fast pass identifies the file (an
 IPA is a ZIP with `Payload/<name>.app/`) and, with `[static] mobsf_enabled = true`, the app goes to MobSF on the
 deep queue (`drakrun/analyzer/static/mobsf.py`).
 
@@ -93,9 +95,9 @@ MobSF does not decompile them on Linux. For PE and ELF files the same tab shows 
 `classification.json` with `not_applicable: true` and the verdict card reads "Not classified"; the MobSF report
 is the result.
 
-**Not covered.** Dynamic Android or iOS analysis. Android would need an Android-x86 HVM guest under Xen (dom0
-has no `/dev/kvm` for the usual emulator) with its own instrumentation; iOS needs Corellium-style virtual
-devices or jailbroken hardware. Both are planned as separate work after the capstone.
+**Dynamic analysis.** Android apps uploaded in **Combined** mode also run in an Android-x86 guest under Xen with
+MobSF's dynamic analyzer and Frida: see [mobile-dynamic.md](mobile-dynamic.md). iOS apps stay static only; their
+dynamic analysis needs Corellium virtual devices (an opt-in cloud option, not yet set up).
 
 The MobSF image is built locally from upstream v4.5.3 with JADX baked in (no download at scan time):
 

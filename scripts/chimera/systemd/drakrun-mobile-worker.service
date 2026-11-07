@@ -1,0 +1,25 @@
+[Unit]
+Description=CHIMERA Android dynamic-analysis worker (Android-x86 guest + MobSF in the mobile VM)
+Documentation=file:///opt/chimera/docs/chimera/mobile-dynamic.md
+Requires=redis-server.service
+After=redis-server.service chimera-net.service
+
+[Service]
+Type=simple
+# Root: it creates the drakrun network, the two Xen domains and the overlay. It never parses the app:
+# MobSF runs in the mobile VM and the worker reads one bounded JSON envelope back from a raw disk.
+ExecStart=/opt/chimera/venv/bin/drakrun mobile-worker
+Restart=on-failure
+RestartSec=10
+User=root
+UMask=0077
+NoNewPrivileges=yes
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectControlGroups=no
+LockPersonality=yes
+MemoryMax=2G
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

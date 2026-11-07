@@ -10,6 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 import UploadView from "./UploadView.jsx";
 import { getIntelProviders } from "./intelApi.js";
 import { uploadSample } from "./api.js";
+import { getAnalysisTimeSettings } from "./analysisTimeApi.js";
 
 vi.mock("./intelApi.js", () => ({ getIntelProviders: vi.fn() }));
 vi.mock("./api.js", () => ({ uploadSample: vi.fn() }));
@@ -100,6 +101,47 @@ it("sends an Android APK as a static-only analysis", async () => {
     fireEvent.submit(document.querySelector("form"));
     await waitFor(() => expect(uploadSample).toHaveBeenCalledOnce());
     expect(uploadSample.mock.calls[0][0].mode).toBe("static-only");
+});
+
+it("sends an Android APK as combined when dynamic analysis is on", async () => {
+    getIntelProviders.mockResolvedValue({
+        data: { online_enabled: false, online_default: false },
+    });
+    getAnalysisTimeSettings.mockResolvedValueOnce({
+        data: {
+            max_timeout_s: 86400,
+            clock_scale_enabled: false,
+            clock_scale_max: 60,
+            sleep_skip_above_ms: 10000,
+            sleep_skip_to_ms: 1000,
+            mobile_dynamic: true,
+            mobile_run_s: 180,
+        },
+    });
+    uploadSample.mockResolvedValue({ task_uid: "fixture" });
+    render(
+        <MemoryRouter>
+            <UploadView />
+        </MemoryRouter>,
+    );
+    await screen.findByText(/MobSF static and dynamic/);
+    fireEvent.change(screen.getByLabelText("Platform"), {
+        target: { value: "android" },
+    });
+    expect(screen.getByText(/Android 9 guest for 180 s/)).toBeTruthy();
+    const mode = screen.getByLabelText("Mode");
+    expect(mode.disabled).toBe(false);
+    expect(mode.value).toBe("combined");
+    expect(screen.queryByRole("option", { name: "Dynamic only" })).toBeNull();
+    fireEvent.change(document.querySelector('input[type="file"]'), {
+        target: { files: [new File(["PK"], "app.apk")] },
+    });
+    fireEvent.submit(document.querySelector("form"));
+    await waitFor(() => expect(uploadSample).toHaveBeenCalledOnce());
+    const sent = uploadSample.mock.calls[0][0];
+    expect(sent.mode).toBe("combined");
+    expect(sent.guest_os).toBe("android");
+    expect(sent.plugins).toBeUndefined();
 });
 
 it("refuses a non-APK file for Android", async () => {

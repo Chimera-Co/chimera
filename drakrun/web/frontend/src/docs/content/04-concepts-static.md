@@ -6,8 +6,8 @@ group: Concepts
 
 Every upload is also analysed **statically**: the file is parsed but never executed. The static job starts at
 the same moment as the detonation, usually finishes long before it, and writes `static.json` (schema
-`chimera-static/1`). The classifier later sees it next to the behaviour. Files CHIMERA cannot detonate, such as
-Android and iOS apps, get a static-only analysis.
+`chimera-static/1`). The classifier later sees it next to the behaviour. iOS apps get a static-only analysis;
+Android apps can also be run (see below).
 
 ## Two passes and their layers
 
@@ -34,11 +34,22 @@ files are judged by rules only.
 
 ## Mobile apps: MobSF
 
-Android APK and iOS IPA uploads (static only) go to **MobSF** (Mobile Security Framework, built locally at
+Android APK and iOS IPA uploads go to **MobSF** (Mobile Security Framework, built locally at
 4.5.3 with JADX): permissions, manifest and code findings with CWE/OWASP/MASVS references, network security
 configuration, signing certificate, trackers, secrets, domains and, for iOS, binary hardening and App Transport
 Security. For APKs the JADX Java/Kotlin sources are browsable in the console. The classifier is not trained on
 mobile apps, so they are marked "Not classified".
+
+## Android apps: dynamic analysis
+
+In **Combined** mode an APK also runs for 60–1800 s (180 s by default) in an **Android-x86 9** guest (API 28,
+x86_64) under Xen, beside a second VM built from the static VM's image that runs MobSF's dynamic analyzer. Both sit
+on their own bridge that reaches only the simulated internet, and both are destroyed after the run. MobSF installs
+the app with frida-server and its CA, then Frida hooks the app's API calls and bypasses SSL pinning, root,
+debugger, emulator and adb checks while the exported-activity tester and random taps drive it. The **Android
+dynamic** tab shows the run steps, screenshots, the domains and URLs it contacted, the Frida API calls, the files
+it wrote and logcat; the bridge's traffic is the analysis's PCAP. Apps with only ARM native code do not run on
+the x86 guest.
 
 ## Memory dumps
 

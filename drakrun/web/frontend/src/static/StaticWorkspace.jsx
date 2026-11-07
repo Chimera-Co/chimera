@@ -11,6 +11,7 @@ import {
     YAxis,
 } from "recharts";
 import { getDeepStatic, getStaticReport } from "../api.js";
+import { MobileDynamicView } from "./MobileDynamicView.jsx";
 import { MobsfView } from "./MobsfView.jsx";
 import {
     SEVERITY_CLASS,
@@ -859,7 +860,7 @@ function Workspace({ data, analysisId }) {
         ...(indicatorCount ? ["Indicators"] : []),
         "Structure",
         ...(supported ? ["Imports"] : []),
-        ...(fmt === "apk" ? ["Android (MobSF)"] : []),
+        ...(fmt === "apk" ? ["Android (MobSF)", "Android dynamic"] : []),
         ...(fmt === "ipa" ? ["iOS (MobSF)"] : []),
         "Strings",
         "Capabilities",
@@ -974,6 +975,9 @@ function Workspace({ data, analysisId }) {
             {tab === "Imports" && <ImportsView data={data} />}
             {(tab === "Android (MobSF)" || tab === "iOS (MobSF)") && (
                 <MobsfView analysisId={analysisId} />
+            )}
+            {tab === "Android dynamic" && (
+                <MobileDynamicView analysisId={analysisId} />
             )}
             {tab === "Strings" && <Strings data={data} deep={deep} />}
             {tab === "Capabilities" && <Capabilities data={data} deep={deep} />}

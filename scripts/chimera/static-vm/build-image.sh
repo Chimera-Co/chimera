@@ -8,7 +8,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 OUT=/var/lib/chimera-static-vm
 ROOT=$OUT/root.img
 MNT=$(mktemp -d /tmp/chimera-static-root.XXXX)
-IMAGES=("localhost/chimera-static:0.1.0" "localhost/chimera-ghidra:11.1.2" "localhost/chimera-mobsf:4.5.3")
+IMAGES=("localhost/chimera-static:0.1.0" "localhost/chimera-ghidra:11.1.2" "localhost/chimera-mobsf:4.5.3"
+    "localhost/chimera-mobsf-dynamic:4.5.3")
 MIRROR=${MIRROR:-http://deb.debian.org/debian}
 mkdir -p "$OUT"
 chmod 700 "$OUT"
@@ -80,6 +81,14 @@ else
     fi
     install -m 0755 "$HERE/guest/chimera-static-agent.py" "$MNT/usr/local/sbin/chimera-static-agent"
 fi
+
+# The same image boots the mobile VM (scripts/chimera/mobile), which has one NIC and the kernel arguments
+# chimera.role=mobile ip=...: networkd configures it from ip=. Both units stay off in the static VM (no NIC).
+for unit in systemd-networkd systemd-network-generator systemd-networkd-wait-online; do
+    install -d "$MNT/etc/systemd/system/$unit.service.d"
+    install -m 0644 "$HERE/guest/mobile-role.conf" "$MNT/etc/systemd/system/$unit.service.d/chimera-mobile.conf"
+done
+systemctl --root="$MNT" enable systemd-networkd.service systemd-network-generator.service >/dev/null 2>&1
 
 # Analyzer images into the read-only additional store (same podman version and driver as the guest).
 rm -rf "$MNT/usr/lib/chimera-images"

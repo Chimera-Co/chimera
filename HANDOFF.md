@@ -86,7 +86,8 @@ flowchart TB
    the static VM about 8 minutes.
 8. Remaining al-khaser detections (WMI sensors, ACPI/SMBIOS table counts, Hyper-V objects, `parent_is_explorer`,
    RDTSC VM-exit cost): residuals documented in `hardening-design.md` §6–7. Do not re-chase CPUID or mouse checks.
-9. Future scope (after 31 Oct): URL analysis mode, further anti-evasion work, Android dynamic analysis. See the
+9. Future scope (after 31 Oct): URL analysis mode, further anti-evasion work, iOS dynamic analysis (Corellium,
+   opt-in). Android dynamic analysis landed 8 Nov: `docs/chimera/mobile-dynamic.md`. See the
    [limitations page](https://chimera-co.github.io/chimera/#/docs/limitations) and `docs/chimera/plan/roadmap.md`.
 
 ## 3. The host in production

@@ -11,8 +11,9 @@ GuestOS = Literal["windows", "linux"]
 
 class AnalysisOptions(BaseModel):
     mode: Literal["combined", "dynamic-only", "static-only"] = "combined"
-    # Guest to run the sample in: the Windows golden image or the Linux one (linux_analyzer.py)
-    guest_os: GuestOS = "windows"
+    # Guest to run the sample in: the Windows golden image or the Linux one (linux_analyzer.py). Mobile apps
+    # never reach the drakrun queues: android/ios only label their static-only record (and the Android run)
+    guest_os: GuestOS | Literal["android", "ios"] = "windows"
     # Host sample path (local filesystem or None when using S3)
     host_sample_path: Optional[pathlib.Path] = None
     # Filename of the uploaded sample (archive name for archives, executable for normal files)

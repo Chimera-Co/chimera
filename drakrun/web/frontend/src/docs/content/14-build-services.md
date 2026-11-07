@@ -79,6 +79,29 @@ mobsf_enabled = true
 vm_idle_shutdown_s = 600       # 0 keeps the VM running
 ```
 
+## Android dynamic analysis
+
+Needs the static VM above. The Android-x86 9.0-r2 ISO and the frida-server 17.18.0 x86_64 release go in
+`/var/lib/chimera-mobile/downloads/`; the scripts check their hashes.
+
+```bash
+scripts/chimera/mobile/build-android-image.sh       # Android disk and adb key in /var/lib/chimera-mobile
+PYTHONPATH=. /opt/chimera/venv/bin/python scripts/chimera/mobile/first-boot.py   # golden image
+scripts/chimera/mobile/build-mobsf-dynamic.sh       # MobSF with frida-server and the mitmproxy CA
+scripts/chimera/static-vm/build-image.sh --images   # copy it into the VM image store
+install -m 644 scripts/chimera/systemd/drakrun-mobile-worker.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now drakrun-mobile-worker
+```
+
+```toml
+[mobile]
+enabled = true
+default_run_s = 180            # 60-1800, chosen per upload
+```
+
+Each run uses drakrun network 9 (`drak9`, 10.13.9.0/24), the Android guest (3072 MB) and a second boot of the
+static VM's image with a NIC (3584 MB); both are destroyed afterwards. Details in `docs/chimera/mobile-dynamic.md`.
+
 ## Classifier
 
 ```bash

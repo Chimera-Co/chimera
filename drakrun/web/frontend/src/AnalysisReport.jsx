@@ -28,6 +28,7 @@ import { DecompiledCodeTab } from "./static/DecompiledCode.jsx";
 import { EdgeDrawer, useOutOfView } from "./EdgeDrawer.jsx";
 import { PipelineStatus } from "./PipelineStatus.jsx";
 import { SimpleReport } from "./SimpleReport.jsx";
+import { isStaticRecord } from "./formatUtils.js";
 
 export function AnalysisLogViewerTab({ analysisId }) {
     const logType = useTabContext()?.activeTab;
@@ -259,7 +260,7 @@ function AnalysisReportTabs({
         },
         [analysisSummary, selectedProcess],
     );
-    if (analysis.options?.mode === "static-only") {
+    if (isStaticRecord(analysis)) {
         return (
             <div className="card">
                 <div className="card-body">
@@ -519,7 +520,7 @@ export function AnalysisReport() {
         getAnalysisSummary,
         isOffline,
     } = useAnalysisReport();
-    const isStatic = analysis.options?.mode === "static-only";
+    const isStatic = isStaticRecord(analysis);
     const baseUrl = axios.defaults.baseURL;
     const analysisId = analysis.id;
     const report = useChimeraReport(analysisId, !isOffline && !isStatic);
@@ -560,7 +561,7 @@ export function AnalysisReport() {
         analysis.options?.guest_os
             ? `${analysis.options.guest_os} guest`
             : null,
-        isStatic ? "static only" : null,
+        analysis.options?.mode === "static-only" ? "static only" : null,
     ].filter(Boolean);
     const tree = (
         <ProcessTreeView
