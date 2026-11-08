@@ -16,3 +16,10 @@ scikit-learn==1.9.1     # thrember's FeatureHasher (same version as the classifi
 flare-capa==7.4.0
 flare-floss==3.2.0
 vivisect==1.3.2
+# CERT Polska tools, each run as its own program (GPL-3.0): malduck extracts malware configs with the modules in
+# malduck-modules/ (pinned submodule; libcsce is its Cobalt Strike parser), hfinger fingerprints the HTTP requests
+# in a run's PCAP over tshark (apt, in the Containerfile)
+malduck==4.4.1
+libcsce==0.1.0
+hfinger==0.2.2
+fnvhash==0.2.1

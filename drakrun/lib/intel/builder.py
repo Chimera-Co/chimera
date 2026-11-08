@@ -75,7 +75,16 @@ def parse_feed(raw, feed):
     if fmt == "text":
         for line in text.splitlines():
             if line.strip() and not line.lstrip().startswith("#"):
-                add(feed["indicator_types"][0], line)
+                # an optional feed "label" names what the list holds (e.g. "phishing"): shown as the family
+                add(
+                    feed["indicator_types"][0],
+                    line.strip(),
+                    (
+                        {"malware_family": feed.get("label")}
+                        if feed.get("label")
+                        else None
+                    ),
+                )
     elif fmt == "misp_warninglist":
         obj = json.loads(text)
         for value in obj["list"]:

@@ -54,6 +54,17 @@ max_age_days = 7
 auth_key = false
 
 [[feeds]]
+name = "certpl-phishing"
+url = "https://hole.cert.pl/domains/v2/domains.txt"
+format = "text"
+indicator_types = ["domain"]
+label = "phishing (CERT Polska warning list)"
+license = "CERT Polska warning list (hole.cert.pl): public list of phishing and scam domains; review reuse terms before redistribution"
+max_age_days = 2
+auth_key = false
+match_subdomains = true
+
+[[feeds]]
 name = "warninglist"
 url = "https://raw.githubusercontent.com/MISP/misp-warninglists/main/lists/public-dns-v4/list.json"
 format = "misp_warninglist"

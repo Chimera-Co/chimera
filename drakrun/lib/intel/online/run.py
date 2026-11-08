@@ -50,6 +50,18 @@ def collect(directory, static_directory, config, network=None):
                 {}, {}, {"universal": {"iocs": row.get("iocs") or {}}}, {}
             )
         ]
+    # C2 endpoints decoded from malware configurations (malduck): the sample's real infrastructure, which the
+    # contained network never let it reach. From any dump: a config in another process is injected code.
+    memdumps = read_json(static_directory / "memdumps.json")
+    for malware_config in (memdumps.get("malware_configs") or []) + (
+        static.get("malware_configs") or []
+    ):
+        candidates += [
+            (kind, value, "config")
+            for kind, value, _ in observations(
+                {}, {}, {"universal": {"iocs": malware_config.get("iocs") or {}}}, {}
+            )
+        ]
     excluded = []
     if network is not None:
         values = (
@@ -63,6 +75,7 @@ def collect(directory, static_directory, config, network=None):
     # Most telling first: the sample's own hash, then indicators seen at run time, then strings in the file.
     origin_rank = {
         "sample": 0,
+        "config": 1,
         "dynamic": 1,
         "memory": 2,
         "unattributed": 3,
@@ -119,25 +132,83 @@ def collect(directory, static_directory, config, network=None):
     return selected
 
 
-def run(directory, static_directory, config, network=None, scope=None):
+def plan(items, config, scope=None):
+    """(provider, info, observables it will be asked about), in query order."""
+    planned = []
+    for provider, info in zip(providers(), inventory(config)):
+        if scope == "sample-hash" and provider.id not in config.hash_providers:
+            continue
+        wanted = []
+        # A provider without its key is reported once in `providers`, not once per observable.
+        if info["enabled"] and info["configured"]:
+            wanted = [item for item in items if item[0] in provider.types][
+                : provider.max_lookups
+            ]
+        planned.append((provider, info, wanted))
+    return planned
+
+
+def progress_doc(planned, done, current=None, phase="lookups"):
+    """What the console's progress bar shows: per provider how many lookups are planned and done."""
+    return dict(
+        phase=phase,
+        total=sum(len(w) for _, _, w in planned),
+        done=sum(done.values()),
+        current=current,
+        providers=[
+            dict(
+                id=p.id,
+                label=p.label,
+                planned=len(w),
+                done=done.get(p.id, 0),
+                skipped=(
+                    "disabled"
+                    if not i["enabled"]
+                    else (
+                        "no API key"
+                        if not i["configured"]
+                        else "nothing to look up" if not w else None
+                    )
+                ),
+            )
+            for p, i, w in planned
+        ],
+        updated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+def run(directory, static_directory, config, network=None, scope=None, progress=None):
     """scope="sample-hash": only the sample's own hash, only with `config.hash_providers` (the lookup every
-    analysis gets when online intel was not asked for)."""
+    analysis gets when online intel was not asked for). `progress(doc)` is called before each lookup and at
+    the end (see progress_doc)."""
+    report = progress or (lambda doc: None)
+    report(dict(phase="collecting", total=0, done=0, current=None, providers=[]))
     items = collect(directory, static_directory, config, network)
     if scope == "sample-hash":
         items = [item for item in items if item[2] == "sample"]
     results, states = [], []
     cache = Cache(config.cache_path)
-    for provider, info in zip(providers(), inventory(config)):
-        if scope == "sample-hash" and provider.id not in config.hash_providers:
-            continue
+    planned = plan(items, config, scope)
+    done = Counter()
+    for provider, info, wanted in planned:
         rows = []
-        # A provider without its key is reported once in `providers`, not once per observable.
-        if info["enabled"] and info["configured"]:
-            wanted = [item for item in items if item[0] in provider.types]
-            for kind, value, origin in wanted[: provider.max_lookups]:
-                rows.append(
-                    {**provider.lookup(kind, value, config, cache), "origin": origin}
+        for kind, value, origin in wanted:
+            report(
+                progress_doc(
+                    planned,
+                    done,
+                    dict(
+                        provider=provider.id,
+                        label=provider.label,
+                        type=kind,
+                        value=value,
+                    ),
                 )
+            )
+            rows.append(
+                {**provider.lookup(kind, value, config, cache), "origin": origin}
+            )
+            done[provider.id] += 1
         statuses = Counter(row["status"] for row in rows)
         status = (
             "disabled"
@@ -179,6 +250,7 @@ def run(directory, static_directory, config, network=None, scope=None):
             )
         )
         results.extend(rows)
+    report(progress_doc(planned, done, phase="writing report"))
     ran = any(
         r["status"] in {"ok", "not_found", "error", "rate_limited"} for r in results
     )
@@ -242,7 +314,12 @@ def run_online_intel_job(analysis_id, scope=None):
     target.mkdir(parents=True, exist_ok=True)
     try:
         doc = run(
-            ANALYSES_DIR / target.name, target, config.intel, config.network, scope
+            ANALYSES_DIR / target.name,
+            target,
+            config.intel,
+            config.network,
+            scope,
+            progress=_job_progress(),
         )
     except Exception:
         doc = dict(
@@ -269,6 +346,53 @@ def run_online_intel_job(analysis_id, scope=None):
     return doc["summary"]
 
 
+def _job_progress():
+    """Progress into the RQ job's meta (read by GET /api/intel/<id>/online/status); a no-op outside a worker."""
+    from rq import get_current_job
+
+    job = get_current_job()
+    if job is None:
+        return None
+
+    def save(doc):
+        job.meta["progress"] = doc
+        try:
+            job.save_meta()
+        except Exception:  # progress is cosmetic: never fail the lookups over it
+            pass
+
+    return save
+
+
+def job_status(analysis_id, connection):
+    """State of the analysis's online-intel job for the console: none, queued, deferred (waiting for the
+    memory-dump scan), started, finished or failed, with the progress the job last saved.
+    """
+    from rq.exceptions import NoSuchJobError
+    from rq.job import Job
+
+    try:
+        job = Job.fetch(f"intel-online-{analysis_id}", connection=connection)
+    except NoSuchJobError:
+        return dict(state="none")
+    state = job.get_status(refresh=True)
+    state = getattr(state, "value", state)
+    out = dict(
+        state=str(state),
+        scope=(job.args[1] if len(job.args) > 1 else None) or "all",
+        enqueued_at=job.enqueued_at.isoformat() if job.enqueued_at else None,
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        ended_at=job.ended_at.isoformat() if job.ended_at else None,
+        progress=(job.meta or {}).get("progress"),
+    )
+    if state == "queued":
+        try:
+            out["queue_position"] = job.get_position()
+        except Exception:
+            pass
+    return out
+
+
 def virustotal_reason(results):
     """What VirusTotal said about the sample's own hash, in one line (None when it was not asked)."""
     for row in results:
@@ -287,8 +411,9 @@ def virustotal_reason(results):
     return None
 
 
-def assessment(label, results):
-    """Precedence: known malware hashes, engine consensus, known software, model.
+def assessment(label, results, config_families=()):
+    """Precedence: known malware hashes, a decoded malware configuration, engine consensus, known software,
+    model.
 
     Engine consensus counts only the sample's own hash: a contacted domain or IP that VirusTotal flags is
     evidence about the run, not a verdict on the file. VirusTotal's view of the hash is added to every basis.
@@ -306,6 +431,18 @@ def assessment(label, results):
                 ]
                 + vt,
             )
+    if config_families:
+        # malduck only decodes a config when the family's own structure is there: as strong as a hash match
+        return dict(
+            label="malicious",
+            basis="malware config",
+            reasons=[
+                "Configuration of "
+                + ", ".join(config_families)
+                + " decoded from the run"
+            ]
+            + vt,
+        )
     engines = max(
         [
             r.get("detections", {}).get("malicious", 0)

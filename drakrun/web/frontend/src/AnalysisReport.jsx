@@ -471,6 +471,16 @@ function DownloadsMenu({ analysis, isStatic }) {
             `${baseUrl}/chimera_report/${analysis.id}/iocs.json`,
             analysis["chimera_report"],
         ],
+        [
+            "IOCs (STIX 2.1)",
+            `${baseUrl}/chimera_report/${analysis.id}/stix.json`,
+            analysis["chimera_report"],
+        ],
+        [
+            "IOCs (MISP event)",
+            `${baseUrl}/chimera_report/${analysis.id}/misp.json`,
+            analysis["chimera_report"],
+        ],
     ].filter(([, , shown]) => shown);
     return (
         <details className="chimera-menu" ref={box}>

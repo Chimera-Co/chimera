@@ -32,8 +32,51 @@ def test_refresh(api_client, base_config, tmp_path, monkeypatch):
     (directory / "chimera-report.json").write_text(json.dumps({"stages": {}}))
     queue = Mock()
     monkeypatch.setattr("drakrun.lib.intel.online.run.enqueue", queue)
+    state = {"state": "none"}
+    monkeypatch.setattr("drakrun.lib.intel.online.run.job_status", lambda uid, conn: state)
     assert api_client.post(f"/api/intel/{uid}/refresh").status_code == 202
     assert queue.call_args.args[2] == {"intel_online": True}
+    # a lookup already queued or running is followed, not queued twice
+    queue.reset_mock()
+    state = {"state": "started"}
+    response = api_client.post(f"/api/intel/{uid}/refresh")
+    assert response.status_code == 202 and response.json == {"status": "started", "already": True}
+    queue.assert_not_called()
+
+
+def test_online_status_reads_the_job_progress(monkeypatch):
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+
+    from rq.exceptions import NoSuchJobError
+    from rq.job import Job
+
+    from drakrun.lib.intel.online.run import job_status
+
+    uid = str(uuid.uuid4())
+
+    def missing(job_id, connection):
+        raise NoSuchJobError(job_id)
+
+    monkeypatch.setattr(Job, "fetch", staticmethod(missing))
+    assert job_status(uid, None) == {"state": "none"}
+    job = SimpleNamespace(
+        args=(uid, None),
+        enqueued_at=datetime(2026, 11, 8, tzinfo=timezone.utc),
+        started_at=None,
+        ended_at=None,
+        meta={"progress": {"phase": "lookups", "done": 2, "total": 5}},
+        get_status=lambda refresh=True: SimpleNamespace(value="queued"),
+        get_position=lambda: 3,
+    )
+    fetched = []
+    monkeypatch.setattr(
+        Job, "fetch", staticmethod(lambda job_id, connection: fetched.append(job_id) or job)
+    )
+    got = job_status(uid, None)
+    assert fetched == [f"intel-online-{uid}"]
+    assert got["state"] == "queued" and got["queue_position"] == 3 and got["scope"] == "all"
+    assert got["progress"]["done"] == 2 and got["enqueued_at"].startswith("2026-11-08")
 
 
 def test_offline_recheck_queues_a_report_rebuild(api_client, tmp_path, monkeypatch):

@@ -143,6 +143,10 @@ def _script(data: bytes):
     return best or "text"
 
 
+# libpcap (microsecond and nanosecond, either byte order) and pcapng section headers
+PCAP_MAGICS = {b"\xd4\xc3\xb2\xa1", b"\xa1\xb2\xc3\xd4", b"\x4d\x3c\xb2\xa1", b"\xa1\xb2\x3c\x4d", b"\x0a\x0d\x0d\x0a"}
+
+
 def identify(data: bytes, file_name: str = "") -> dict:
     info = {"format": "unknown", "platform": "any", "arch": None, "bits": None}
     for probe in (_pe, _elf, _macho):
@@ -176,6 +180,8 @@ def identify(data: bytes, file_name: str = "") -> dict:
             info["format"] = "iso"
         elif head.startswith(b"\xe4\x52\x5c\x7b\x8c\xd8\xa7\x4d"):
             info["format"] = "onenote"
+        elif head[:4] in PCAP_MAGICS:
+            info["format"] = "pcap"
         else:
             lang = _script(data)
             if lang:

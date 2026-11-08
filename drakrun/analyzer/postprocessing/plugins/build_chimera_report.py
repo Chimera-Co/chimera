@@ -299,6 +299,32 @@ def _stage_memdumps(doc, ev: "_Evidence", claim, iocs: list) -> dict:
                         "evidence_ids": [d_eid],
                     }
                 )
+    configs = doc.get("malware_configs") or []
+    for i, config in enumerate(configs):
+        c_eid = ev.add("memdumps.json", f"/malware_configs/{i}", "malduck")
+        where = ", ".join(
+            sorted({str(d.get("process") or "?") for d in config.get("dumps") or []})
+        )
+        claim(
+            f"memdump-config-{i}",
+            f"{config.get('family')} configuration extracted from memory ({where})"
+            + (": C2 " + ", ".join(config["c2"][:4]) if config.get("c2") else ""),
+            "observed",
+            "high",
+            [c_eid],
+            rationale="Recognised and decoded by CERT Polska's malduck module for this family.",
+        )
+        for kind, values in (config.get("iocs") or {}).items():
+            for value in values:
+                iocs.append(
+                    {
+                        "type": kind.rstrip("s"),
+                        "value": value,
+                        "source": f"{config.get('family')} malware configuration (memory)",
+                        "evidence_ids": [c_eid],
+                    }
+                )
+    network = doc.get("network_fingerprints") or {}
     return {
         "status": "ok",
         "reason": None,
@@ -308,6 +334,22 @@ def _stage_memdumps(doc, ev: "_Evidence", claim, iocs: list) -> dict:
             "scanned": len(scanned),
             "yara_hits": sum(1 for d in scanned if d.get("yara")),
             "duplicates": doc.get("duplicates"),
+            "malware_configs": [
+                {k: c.get(k) for k in ("family", "c2", "iocs", "fields", "dumps")}
+                for c in configs
+            ],
+            "http_fingerprints": (
+                (
+                    {"error": network["error"]}
+                    if network.get("error")
+                    else {
+                        "requests": len(network.get("http_fingerprints") or []),
+                        "fingerprints": (network.get("fingerprints") or [])[:20],
+                    }
+                )
+                if network
+                else None
+            ),
         },
         "evidence_ids": [eid],
     }
@@ -748,7 +790,15 @@ def build_report(
     from drakrun.lib.intel.online.run import assessment as intel_assessment
 
     online_results = (intel_payload.get("online") or {}).get("results", [])
-    assessed = intel_assessment(label, online_results)
+    families = sorted(
+        {
+            str(c.get("family"))
+            for c in ((loaded["memdumps.json"][0] or {}).get("malware_configs") or [])
+            + (static.get("malware_configs") or [])
+            if c.get("family")
+        }
+    )
+    assessed = intel_assessment(label, online_results, config_families=families)
     assessment.update(assessed)
     if assessed["basis"] != "behaviour model":
         assessment["text"] = f"{assessed['label']}: {assessed['basis']}. " + "; ".join(

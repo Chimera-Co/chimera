@@ -16,6 +16,7 @@ vi.mock("./api.js", () => ({ uploadSample: vi.fn() }));
 vi.mock("./intelApi.js", () => ({
     getIntel: vi.fn().mockResolvedValue({ data: { status: "unavailable" } }),
     refreshIntel: vi.fn().mockResolvedValue({ data: { status: "queued" } }),
+    getIntelStatus: vi.fn().mockResolvedValue({ data: { state: "none" } }),
     getIntelProviders: vi
         .fn()
         .mockRejectedValue(new Error("settings unavailable")),

@@ -529,3 +529,13 @@ def test_fetch_puts_abusech_key_in_path_only_at_request_time(monkeypatch):
         feed(format="threatfox", indicator_types=["domain"]),
     )
     assert [(r["type"], r["value"]) for r in rows] == [("domain", "evil.example")]
+
+
+def test_text_feed_label_becomes_the_family():
+    from drakrun.lib.intel.builder import parse_feed
+
+    feed = {"format": "text", "indicator_types": ["domain"], "label": "phishing (CERT Polska warning list)"}
+    rows = parse_feed(b"# comment\nbank-login.example\n\n  pay.example  \n", feed)
+    assert [r["value"] for r in rows] == ["bank-login.example", "pay.example"]
+    assert {r["malware_family"] for r in rows} == {"phishing (CERT Polska warning list)"}
+    assert parse_feed(b"x.example\n", {**feed, "label": None})[0]["malware_family"] is None

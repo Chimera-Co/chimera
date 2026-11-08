@@ -36,6 +36,8 @@ INJECTION_REASONS = ("remote", "inject", "write", "apc", "hollow")
 MAX_FINDINGS = 12
 MAX_IOCS = 10
 MAX_INDICATORS = 8
+MAX_CONFIGS = 8
+PCAP_MAX_MB = 64
 
 
 def _memdump_records(analysis_dir: Path) -> dict:
@@ -184,7 +186,74 @@ def _summary(candidate: dict, digest: str, result: dict) -> dict:
             if iocs.get(k)
         },
         "backend": (result.get("container") or {}).get("backend"),
+        # configs CERT Polska's malduck modules recognised in this dump (family, C2, IOCs)
+        "malware_configs": (result.get("malware_configs") or [])[:MAX_CONFIGS],
     }
+
+
+def merge_configs(scanned: list[dict]) -> list[dict]:
+    """One entry per distinct config across all dumps, with the dumps it was found in."""
+    merged: dict = {}
+    for dump in scanned:
+        for config in dump.get("malware_configs") or []:
+            key = json.dumps(
+                [config.get("family"), config.get("c2"), config.get("fields")],
+                sort_keys=True,
+            )
+            entry = merged.setdefault(key, {**config, "dumps": []})
+            entry["dumps"].append(
+                {
+                    "member": dump.get("member"),
+                    "process": dump.get("process"),
+                    "pid": dump.get("pid"),
+                    "sample_tree": dump.get("sample_tree"),
+                }
+            )
+    return list(merged.values())[:MAX_CONFIGS]
+
+
+def fingerprint_traffic(
+    analysis_id: str,
+    analyses_dir: Path = ANALYSES_DIR,
+    static_dir: Optional[Path] = None,
+    settings=None,
+) -> Optional[dict]:
+    """HTTP request fingerprints (CERT Polska's hfinger) of the run's dump.pcap, in the same sandbox.
+
+    None when the run kept no traffic. Under the simulated Internet every request still comes from the guest,
+    so the fingerprints describe the sample's (or Windows') HTTP clients."""
+    from .sandbox import run_in_container, stage_sample
+    from .worker import job_dir
+
+    settings = settings or load_config().static
+    pcap = analyses_dir / analysis_id / "dump.pcap"
+    try:
+        size = pcap.stat().st_size
+    except OSError:
+        return None
+    if size <= 24:  # a pcap header and nothing else
+        return None
+    if size > PCAP_MAX_MB << 20:
+        return {
+            "error": f"dump.pcap is {size >> 20} MB, over the {PCAP_MAX_MB} MB limit"
+        }
+    work = job_dir(analysis_id, static_dir) / "pcap"
+    shutil.rmtree(work, ignore_errors=True)
+    try:
+        stage_sample(pcap, work, settings)
+        pcap_id = str(uuid.uuid5(uuid.UUID(analysis_id), "dump.pcap"))
+        result = run_in_container(settings, pcap_id, work, "dump.pcap")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    if result.get("error"):
+        return {"error": str(result["error"])[:300]}
+    got = result.get("pcap")
+    if not got:
+        failed = [e for e in result.get("errors") or [] if e.get("stage") == "pcap"]
+        return {
+            "error": (failed[0].get("error") if failed else "no fingerprints")[:300]
+        }
+    return got
 
 
 def scan(
@@ -270,6 +339,7 @@ def scan(
         - doc["duplicates"]
         - doc["too_large_or_empty"],
     )
+    doc["malware_configs"] = merge_configs(doc["scanned"])
     doc["wall_s"] = round(time.time() - started, 2)
     return doc
 
@@ -279,6 +349,13 @@ def run_memdump_job(analysis_id: str) -> dict:
     from .worker import _refresh_report, _write_json, job_dir
 
     doc = scan(analysis_id)
+    try:
+        network = fingerprint_traffic(analysis_id)
+    except Exception as exc:  # the dump scan stands on its own
+        logger.exception("[static] traffic fingerprints failed for %s", analysis_id)
+        network = {"error": str(exc)[:300]}
+    if network is not None:
+        doc["network_fingerprints"] = network
     directory = job_dir(analysis_id)
     directory.mkdir(
         mode=0o711, parents=True, exist_ok=True
@@ -287,14 +364,16 @@ def run_memdump_job(analysis_id: str) -> dict:
     _refresh_report(analysis_id)
     hits = sum(1 for d in doc["scanned"] if d["yara"])
     logger.info(
-        "[static] memory dumps %s: %d scanned, %d with YARA matches",
+        "[static] memory dumps %s: %d scanned, %d with YARA matches, %d configs",
         analysis_id,
         len(doc["scanned"]),
         hits,
+        len(doc.get("malware_configs") or []),
     )
     return {
         "scanned": len(doc["scanned"]),
         "yara_hits": hits,
+        "malware_configs": len(doc.get("malware_configs") or []),
         "error": doc.get("error"),
     }
 

@@ -114,3 +114,45 @@ def test_scan_stops_at_time_budget_and_says_so(tmp_path, monkeypatch):
     assert doc["too_large_or_empty"] == 1 and doc["skipped"] == 2  # 4 dumps: 1 scanned, 1 too large, 2 left
     assert doc["scanned"][0]["indicators"] == [{"title": "Process injection imports", "severity": 3,
                                                 "category": "imports", "attack": ["T1055"]}]
+
+
+REMCOS = {"family": "remcos", "c2": ["c2.example.test:2404"],
+          "iocs": {"urls": [], "domains": ["c2.example.test"], "ips": []}, "fields": {"mutex": "Rmc-TEST"}}
+
+
+def test_scan_merges_configs_across_dumps(tmp_path, monkeypatch):
+    make_analysis(tmp_path, {"a_sample_mz": b"MZ" + b"a" * 10, "b_other_mz": b"MZ" + b"b" * 50})
+    monkeypatch.setattr(sandbox, "run_in_container", lambda *a, **k: {
+        "type": {"format": "pe"}, "universal": {}, "findings": [], "malware_configs": [REMCOS]})
+    doc = memdumps.scan(AID, analyses_dir=tmp_path / "analyses", static_dir=tmp_path / "static",
+                        settings=StaticConfigSection(memdump_scan_max=8))
+    assert all(d["malware_configs"] == [REMCOS] for d in doc["scanned"])
+    (merged,) = doc["malware_configs"]  # same config in two dumps: one entry
+    assert merged["family"] == "remcos" and merged["c2"] == ["c2.example.test:2404"]
+    assert [d["process"] for d in merged["dumps"]] == ["evil.exe", "System"]
+    assert merged["dumps"][0]["sample_tree"] is True
+
+
+def test_traffic_fingerprints_from_dump_pcap(tmp_path, monkeypatch):
+    adir = tmp_path / "analyses" / AID
+    adir.mkdir(parents=True)
+    assert memdumps.fingerprint_traffic(AID, tmp_path / "analyses", tmp_path / "static",
+                                        StaticConfigSection()) is None  # no pcap kept
+    (adir / "dump.pcap").write_bytes(b"\xd4\xc3\xb2\xa1" + b"\0" * 100)
+    calls = []
+
+    def fake_run(settings, pcap_id, work, name, deep=False):
+        calls.append((name, (work / "in" / "sample").read_bytes()[:4]))
+        return {"type": {"format": "pcap"},
+                "pcap": {"tool": "hfinger", "http_fingerprints": [], "fingerprints": [{"fingerprint": "f", "count": 2}]}}
+
+    monkeypatch.setattr(sandbox, "run_in_container", fake_run)
+    got = memdumps.fingerprint_traffic(AID, tmp_path / "analyses", tmp_path / "static", StaticConfigSection())
+    assert got["fingerprints"] == [{"fingerprint": "f", "count": 2}]
+    assert calls == [("dump.pcap", b"\xd4\xc3\xb2\xa1")]
+    assert not (tmp_path / "static" / AID / "pcap").exists()
+
+    monkeypatch.setattr(sandbox, "run_in_container", lambda *a, **k: {
+        "errors": [{"stage": "pcap", "error": "hfinger exited 1"}]})
+    assert memdumps.fingerprint_traffic(AID, tmp_path / "analyses", tmp_path / "static",
+                                        StaticConfigSection()) == {"error": "hfinger exited 1"}

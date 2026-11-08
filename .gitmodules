@@ -13,3 +13,6 @@
 [submodule "static_analyzer/rules/reversinglabs/upstream"]
 	path = static_analyzer/rules/reversinglabs/upstream
 	url = https://github.com/reversinglabs/reversinglabs-yara-rules.git
+[submodule "static_analyzer/malduck-modules"]
+	path = static_analyzer/malduck-modules
+	url = https://github.com/CERT-Polska/malduck-modules.git

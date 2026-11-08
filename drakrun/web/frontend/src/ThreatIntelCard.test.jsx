@@ -329,3 +329,73 @@ it("lists bare-TLD hits as a weak note, not as a family", () => {
     ).toBeTruthy();
     expect(screen.queryByText("domain")).toBeNull();
 });
+
+it("follows a running online lookup and loads the report when it ends", async () => {
+    const running = {
+        state: "started",
+        enqueued_at: "2026-11-08T10:00:00Z",
+        progress: {
+            phase: "lookups",
+            total: 4,
+            done: 1,
+            current: {
+                provider: "virustotal",
+                type: "domain",
+                value: "c2.example",
+            },
+            providers: [
+                { id: "virustotal", planned: 3, done: 1, skipped: null },
+                {
+                    id: "greynoise",
+                    planned: 0,
+                    done: 0,
+                    skipped: "nothing to look up",
+                },
+            ],
+        },
+    };
+    let polls = 0;
+    axios.get.mockImplementation((url) => {
+        if (url === "/intel/providers")
+            return Promise.resolve({ data: { online_enabled: true } });
+        if (url === "/intel/fixture/online/status") {
+            polls += 1;
+            return Promise.resolve({
+                data: polls < 3 ? running : { state: "finished" },
+            });
+        }
+        return Promise.resolve({
+            data: {
+                status: "ok",
+                payload: {
+                    ...payload,
+                    online: {
+                        generated_at: "2026-11-08T10:01:00Z",
+                        results: [],
+                        providers: [],
+                    },
+                },
+            },
+        });
+    });
+    render(<ThreatIntelCard analysisId="fixture" />);
+    expect(await screen.findByText("Querying providers")).toBeTruthy();
+    expect(screen.getByText("1 of 4 lookups")).toBeTruthy();
+    expect(screen.getByText("c2.example")).toBeTruthy();
+    expect(screen.getByText("nothing to look up")).toBeTruthy();
+    await waitFor(
+        () => expect(screen.queryByText("Querying providers")).toBeNull(),
+        { timeout: 6000 },
+    );
+    expect(screen.getByText("Run online lookup again").disabled).toBe(false);
+}, 10000);
+
+it("explains why an IP-only provider had nothing to look up", async () => {
+    const { nothingToLookUp } = await import("./ThreatIntelCard.jsx");
+    expect(nothingToLookUp(["ip"])).toMatch(
+        /public IP addresses.*simulated Internet/,
+    );
+    expect(nothingToLookUp(["sha256", "md5"])).toBe(
+        "It only takes file hashes, and this run had none to send.",
+    );
+});

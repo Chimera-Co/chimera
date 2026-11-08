@@ -33,6 +33,7 @@ from drakrun.lib.analysis_time import (
     public_settings,
     validate_time_options,
 )
+from drakrun.lib.chimera_report.stix_misp import misp_event, stix_bundle
 from drakrun.lib.config import load_config
 from drakrun.lib.intel.online.options import OnlineAnalysisOptions
 from drakrun.lib.paths import ANALYSES_DIR, STATIC_DIR, UPLOADS_DIR
@@ -743,6 +744,30 @@ def chimera_report_iocs_csv(path: AnalysisRequestPath):
     )
 
 
+@api.get("/chimera_report/<task_uid>/stix.json", responses={404: APIErrorResponse})
+def chimera_report_stix_json(path: AnalysisRequestPath):
+    report = _report_or_404(path.task_uid)
+    if report is None:
+        return jsonify({"error": "Data not found"}), 404
+    response = jsonify(stix_bundle(report))
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=stix-{path.task_uid}.json"
+    )
+    return response
+
+
+@api.get("/chimera_report/<task_uid>/misp.json", responses={404: APIErrorResponse})
+def chimera_report_misp_json(path: AnalysisRequestPath):
+    report = _report_or_404(path.task_uid)
+    if report is None:
+        return jsonify({"error": "Data not found"}), 404
+    response = jsonify(misp_event(report))
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=misp-{path.task_uid}.json"
+    )
+    return response
+
+
 @api.get("/analysis-time")
 def analysis_time_settings():
     settings = public_settings(config.analysis_time)
@@ -795,7 +820,19 @@ def refresh_intel(path: AnalysisRequestPath):
         )
     if _report_or_404(path.task_uid) is None:
         return jsonify({"error": "Data not found"}), 404
-    from drakrun.lib.intel.online.run import enqueue
+    from drakrun.lib.intel.online.run import enqueue, job_status
 
+    current = job_status(path.task_uid, redis)
+    if current["state"] in ("queued", "deferred", "scheduled", "started"):
+        # one lookup per analysis at a time: the console follows the one already there
+        return jsonify({"status": current["state"], "already": True}), 202
     enqueue(path.task_uid, redis, {"intel_online": True})
     return jsonify({"status": "queued"}), 202
+
+
+@api.get("/intel/<task_uid>/online/status")
+def online_intel_status(path: AnalysisRequestPath):
+    """The analysis's online-lookup job: state, queue position and per-provider progress (none if no job)."""
+    from drakrun.lib.intel.online.run import job_status
+
+    return jsonify(job_status(path.task_uid, redis))

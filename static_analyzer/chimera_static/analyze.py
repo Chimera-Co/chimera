@@ -13,7 +13,7 @@ from .safety import read_sample, write_output
 
 SEVERITY_POINTS = {"info": 0, "low": 4, "medium": 12, "high": 25}
 ML_FORMATS = {"pe", "elf", "pdf"}
-TYPE_PLUGINS = {"pe", "elf", "pdf", "ole", "ooxml", "zip", "ipa", "apk", "lnk", "rtf", "script"}
+TYPE_PLUGINS = {"pe", "elf", "pdf", "ole", "ooxml", "zip", "ipa", "apk", "lnk", "rtf", "script", "pcap"}
 # Formats analyzed by rules only (no ML model, run-time behaviour unknown): never full coverage.
 RULE_ONLY = {"lnk", "rtf", "script"}
 EMBER_MAX_BYTES = 128 * 1024 * 1024
@@ -207,8 +207,25 @@ def analyze(path: str, out_dir: str | None = None, file_name: str = "", timeout_
         # Members are listed, never unpacked: nothing inside was analyzed, so this is never full coverage.
         result["errors"].append({"stage": "archive-contents",
                                  "error": "archive members are listed, not unpacked or analyzed"})
+    elif fmt == "pcap":
+        # a run's traffic (sent by the memory-dump job), not an upload: HTTP fingerprints only
+        from .plugins.pcap import analyze_pcap
+        got = stage("pcap", lambda: analyze_pcap(path, timeout_s * 0.6), heavy=True)
+        if got:
+            result["pcap"], f = got
+            result["findings"] += f
     else:
         result["errors"].append({"stage": "plugins", "error": f"no type plugin for {fmt} yet (layers 0-1 only)"})
+
+    from .plugins import malware_config
+
+    if malware_config.wanted(fmt):
+        configs = stage("malware_config",
+                        lambda: malware_config.extract(path, max(5.0, timeout_s - (time.monotonic() - t0) - 5)),
+                        heavy=True)
+        if configs:
+            result["malware_configs"] = configs
+            result["findings"] += malware_config.findings(configs)
 
     if fmt in ("pe", "elf"):
         from .indicators import build

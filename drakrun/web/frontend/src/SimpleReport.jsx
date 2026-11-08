@@ -158,6 +158,14 @@ function Iocs({ iocs, analysisId }) {
                 ·{" "}
                 <a href={`${base}/chimera_report/${analysisId}/iocs.json`}>
                     JSON
+                </a>{" "}
+                ·{" "}
+                <a href={`${base}/chimera_report/${analysisId}/stix.json`}>
+                    STIX 2.1
+                </a>{" "}
+                ·{" "}
+                <a href={`${base}/chimera_report/${analysisId}/misp.json`}>
+                    MISP
                 </a>
             </div>
         </>

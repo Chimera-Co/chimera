@@ -610,3 +610,40 @@ def test_only_the_sample_hash_is_weighed():
     assert assessment("benign", [unknown])["reasons"][-1] == (
         "VirusTotal does not know the sample's hash"
     )
+
+
+def test_progress_reports_each_lookup_and_skipped_providers(setup, tmp_path, monkeypatch):
+    config, _, _ = setup
+    (config.keys_dir / "otx").unlink()  # one provider without its key
+    monkeypatch.setattr(
+        base.Provider, "lookup", lambda self, kind, value, cfg, cache: self.result(kind, value)
+    )
+    directory = tmp_path / "progress"
+    directory.mkdir()
+    (directory / "metadata.json").write_text(json.dumps({"file": {"sha256": HASH}}))
+    seen = []
+    run(directory, directory, config, progress=seen.append)
+    assert seen[0]["phase"] == "collecting"
+    lookups = [d for d in seen if d["phase"] == "lookups"]
+    assert lookups[0]["done"] == 0 and lookups[0]["current"]["value"] == HASH
+    final = seen[-1]
+    assert final["phase"] == "writing report" and final["done"] == final["total"] == len(lookups)
+    by_id = {p["id"]: p for p in final["providers"]}
+    assert by_id["otx"]["skipped"] == "no API key"
+    assert by_id["greynoise"]["skipped"] == "nothing to look up"  # IP-only provider, no IPs here
+    assert by_id["virustotal"]["planned"] == by_id["virustotal"]["done"] == 1
+
+
+def test_config_c2_is_looked_up_and_sets_the_basis(setup, tmp_path):
+    config, _, _ = setup
+    directory = tmp_path / "config"
+    directory.mkdir()
+    (directory / "memdumps.json").write_text(json.dumps({"scanned": [], "malware_configs": [
+        {"family": "remcos", "c2": ["c2.example.org:2404"],
+         "iocs": {"domains": ["c2.example.org"], "urls": [], "ips": ["203.0.113.9", "8.8.4.4"]}}]}))
+    selected = collect(directory, directory, config)
+    assert ("domain", "c2.example.org", "config") in selected
+    assert ("ip", "8.8.4.4", "config") in selected
+    assert not any(v == "203.0.113.9" for _, v, _ in selected)  # documentation range: not public
+    got = assessment("suspicious", [], config_families=["remcos"])
+    assert (got["label"], got["basis"]) == ("malicious", "malware config")

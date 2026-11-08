@@ -21,11 +21,13 @@ FROM docker.io/library/python:3.11-slim-bookworm AS test
 ENV PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
     CHIMERA_STATIC_YARA=/opt/chimera-static/rules.yarc \
     OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
-RUN apt-get update && apt-get install -y --no-install-recommends libmagic1 libfuzzy2 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libmagic1 libfuzzy2 tshark \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=build /wheels /tmp/wheels
 RUN pip install --no-index --find-links /tmp/wheels /tmp/wheels/*.whl && pip install pytest==8.3.5
 COPY rules /opt/chimera-static/rules
 RUN python -I -m chimera_static.rules_build /opt/chimera-static/rules /opt/chimera-static/rules.yarc
+COPY malduck-modules/modules /opt/chimera-static/malduck-modules
 # capa rules (git submodule, pinned in capa-rules.SOURCE.json) and a pre-built rule cache: the runtime root is read-only.
 # No library signatures are shipped (capa's FLIRT .sig files are not in the pip package): deep.json says so.
 ENV CHIMERA_CAPA_RULES=/opt/chimera-static/capa-rules CHIMERA_CAPA_SIGS=/opt/chimera-static/capa-sigs \
@@ -51,7 +53,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CHIMERA_STATIC_YARA=/opt/chimera-static/rules.yarc \
     OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libmagic1 libfuzzy2 \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libmagic1 libfuzzy2 tshark \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /wheels /tmp/wheels
 RUN pip install --no-index --find-links /tmp/wheels /tmp/wheels/*.whl \
@@ -63,6 +65,9 @@ RUN pip install --no-index --find-links /tmp/wheels /tmp/wheels/*.whl \
 # rules.yarc.json records the rule count and each ruleset's pin (rules/<name>/SOURCE.json; rules are submodules).
 COPY rules /opt/chimera-static/rules
 RUN python -I -m chimera_static.rules_build /opt/chimera-static/rules /opt/chimera-static/rules.yarc
+
+# CERT Polska's malduck modules (njRAT, Remcos, REvil, Cobalt Strike, GraphicalProton): a pinned submodule.
+COPY malduck-modules/modules /opt/chimera-static/malduck-modules
 
 # capa rules (git submodule, pinned in capa-rules.SOURCE.json) and a pre-built rule cache: the runtime root is read-only.
 # No library signatures are shipped (capa's FLIRT .sig files are not in the pip package): deep.json says so.

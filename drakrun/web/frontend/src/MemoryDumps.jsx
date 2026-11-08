@@ -8,6 +8,7 @@ const LEVEL_RANK = { high: 0, medium: 1, low: 2, clean: 3 };
 const hasResult = (d) =>
     Boolean(
         d.yara?.length ||
+            d.malware_configs?.length ||
             d.indicators?.length ||
             d.embedded_executables ||
             d.findings?.some(
@@ -16,6 +17,7 @@ const hasResult = (d) =>
     );
 // Dumps with something to look at first: YARA hits, then insight indicators, then the analyzer's level.
 const interest = (d) => [
+    d.malware_configs?.length ? 0 : 1,
     d.yara?.length ? 0 : 1,
     d.indicators?.length ? 0 : 1,
     LEVEL_RANK[d.level] ?? 4,
@@ -191,6 +193,150 @@ function DumpTable({ scanned }) {
     );
 }
 
+// Config values as short text: nested objects flattened one level, long lists cut.
+const fieldText = (value) =>
+    Array.isArray(value)
+        ? value.map(fieldText).join(", ")
+        : value && typeof value === "object"
+          ? Object.entries(value)
+                .map(([k, v]) => `${k}: ${fieldText(v)}`)
+                .join("; ")
+          : String(value);
+
+export function MalwareConfigs({ configs }) {
+    if (!configs?.length) return null;
+    return (
+        <section className="mb-3" aria-label="Malware configurations">
+            <h6 className="mb-1">Malware configuration</h6>
+            <p className="small text-muted mb-2">
+                Decoded from memory with CERT Polska&apos;s malduck modules
+                (njRAT, Remcos, REvil, Cobalt Strike, GraphicalProton). A
+                decoded configuration identifies the family: its C2 addresses
+                are the sample&apos;s real infrastructure, which the contained
+                network never let it reach.
+            </p>
+            {configs.map((c, i) => (
+                <div className="card mb-2 border-danger-subtle" key={i}>
+                    <div className="card-body p-3">
+                        <div className="d-flex flex-wrap gap-2 align-items-baseline">
+                            <span className="badge bg-danger">{c.family}</span>
+                            {c.dumps?.length ? (
+                                <span className="small text-muted">
+                                    found in{" "}
+                                    {[
+                                        ...new Set(
+                                            c.dumps.map(
+                                                (d) =>
+                                                    `${d.process || "?"}${d.pid != null ? ` (PID ${d.pid})` : ""}`,
+                                            ),
+                                        ),
+                                    ].join(", ")}
+                                </span>
+                            ) : null}
+                        </div>
+                        {c.c2?.length ? (
+                            <div className="mt-2">
+                                <div className="small text-muted">C2</div>
+                                <ul className="list-unstyled mb-0">
+                                    {c.c2.map((e) => (
+                                        <li key={e}>
+                                            <code>{e}</code>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ) : null}
+                        {Object.keys(c.fields || {}).length ? (
+                            <details className="mt-2">
+                                <summary className="small">
+                                    All fields ({Object.keys(c.fields).length})
+                                </summary>
+                                <table className="table table-sm chimera-data-table mb-0 mt-1">
+                                    <tbody>
+                                        {Object.entries(c.fields).map(
+                                            ([k, v]) => (
+                                                <tr key={k}>
+                                                    <th
+                                                        scope="row"
+                                                        className="cell-short"
+                                                    >
+                                                        {k}
+                                                    </th>
+                                                    <td className="cell-long">
+                                                        <code>
+                                                            {fieldText(v)}
+                                                        </code>
+                                                    </td>
+                                                </tr>
+                                            ),
+                                        )}
+                                    </tbody>
+                                </table>
+                            </details>
+                        ) : null}
+                    </div>
+                </div>
+            ))}
+        </section>
+    );
+}
+
+export function HttpFingerprints({ network }) {
+    if (!network) return null;
+    if (network.error)
+        return (
+            <p className="small text-muted">
+                HTTP fingerprints: {network.error}
+            </p>
+        );
+    const prints = network.fingerprints || [];
+    return (
+        <section className="mb-3" aria-label="HTTP request fingerprints">
+            <h6 className="mb-1">HTTP request fingerprints</h6>
+            <p className="small text-muted mb-2">
+                CERT Polska&apos;s hfinger over the run&apos;s traffic: how each
+                client builds its requests (method, version, header order and
+                values, URL and payload features). Requests from one malware
+                family share a fingerprint whatever server they go to, so a
+                fingerprint can be searched for in other runs or in proxy logs.
+            </p>
+            {prints.length ? (
+                <div className="chimera-table-scroll">
+                    <table className="table table-sm chimera-data-table mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Fingerprint</th>
+                                <th scope="col">Requests</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {prints.map((p) => (
+                                <tr key={p.fingerprint}>
+                                    <td className="cell-long">
+                                        <code className="text-break">
+                                            {p.fingerprint}
+                                        </code>
+                                    </td>
+                                    <td className="cell-short">{p.count}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {network.truncated ? (
+                        <p className="small text-muted mb-0">
+                            Only the first requests were fingerprinted.
+                        </p>
+                    ) : null}
+                </div>
+            ) : (
+                <p className="small text-muted">
+                    No HTTP requests in the traffic.
+                </p>
+            )}
+        </section>
+    );
+}
+
 export default function MemoryDumps({ analysisId }) {
     const state = useOptionalJson(getMemdumps, analysisId);
     if (state.loading) return <div role="status">Loading memory dumps…</div>;
@@ -247,6 +393,8 @@ export default function MemoryDumps({ analysisId }) {
                     {STOPPED_TEXT[doc.stopped] || `Stopped: ${doc.stopped}.`}
                 </div>
             ) : null}
+            <MalwareConfigs configs={doc.malware_configs} />
+            <HttpFingerprints network={doc.network_fingerprints} />
             {doc.scanned.length ? (
                 <DumpTable scanned={doc.scanned} />
             ) : (

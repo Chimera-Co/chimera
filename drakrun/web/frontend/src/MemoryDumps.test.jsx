@@ -107,3 +107,40 @@ describe("memory dumps", () => {
         ).toBeTruthy();
     });
 });
+
+it("shows decoded malware configurations and HTTP fingerprints", async () => {
+    const { MalwareConfigs, HttpFingerprints } = await import(
+        "./MemoryDumps.jsx"
+    );
+    render(
+        <>
+            <MalwareConfigs
+                configs={[
+                    {
+                        family: "remcos",
+                        c2: ["c2.example.test:2404"],
+                        fields: {
+                            mutex: "Rmc-TEST",
+                            c2: [{ host: "c2.example.test:2404" }],
+                        },
+                        dumps: [
+                            { process: "evil.exe", pid: 100 },
+                            { process: "evil.exe", pid: 100 },
+                        ],
+                    },
+                ]}
+            />
+            <HttpFingerprints
+                network={{
+                    fingerprints: [{ fingerprint: "1|3|1|f", count: 4 }],
+                }}
+            />
+        </>,
+    );
+    expect(screen.getByText("remcos")).toBeTruthy();
+    expect(screen.getByText("c2.example.test:2404")).toBeTruthy();
+    expect(screen.getByText("found in evil.exe (PID 100)")).toBeTruthy();
+    expect(screen.getByText("Rmc-TEST")).toBeTruthy();
+    expect(screen.getByText("1|3|1|f")).toBeTruthy();
+    expect(screen.getByText("4")).toBeTruthy();
+});

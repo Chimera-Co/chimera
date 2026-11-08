@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
     getIntel,
     getIntelProviders,
+    getIntelStatus,
     recheckIntel,
     refreshIntel,
 } from "./intelApi.js";
@@ -732,6 +733,128 @@ const PROVIDER_STATE = {
     unsupported: "Nothing to look up",
 };
 
+const TYPE_WORDS = {
+    sha256: "file hashes",
+    sha1: "file hashes",
+    md5: "file hashes",
+    domain: "domains",
+    ip: "public IP addresses",
+    url: "URLs",
+};
+
+// Why a provider had nothing to look up: it only takes kinds of indicator this run did not produce.
+export function nothingToLookUp(types) {
+    const words = [...new Set((types || []).map((t) => TYPE_WORDS[t] || t))];
+    const only = words.length ? words.join(" or ") : "indicators";
+    return `It only takes ${only}, and this run had none to send.${
+        (types || []).includes("ip") && !(types || []).includes("domain")
+            ? " Sandbox traffic goes to the simulated Internet, so a run only has public IPs when the sample connects to a hard-coded address or one is decoded from its configuration."
+            : ""
+    }`;
+}
+
+const JOB_STATE = {
+    queued: "Queued",
+    deferred: "Waiting for the memory-dump scan",
+    scheduled: "Scheduled",
+    started: "Running",
+    finished: "Finished",
+    failed: "Failed",
+    stopped: "Stopped",
+    canceled: "Cancelled",
+};
+
+const PHASE = {
+    collecting: "Collecting indicators from the report",
+    lookups: "Querying providers",
+    "writing report": "Writing the report",
+};
+
+export function LookupProgress({ job }) {
+    if (!job) return null;
+    const progress = job.progress || {};
+    const total = progress.total || 0;
+    const done = progress.done || 0;
+    const percent = total ? Math.round((done / total) * 100) : 0;
+    const waiting = ["queued", "deferred", "scheduled"].includes(job.state);
+    const current = progress.current;
+    return (
+        <div
+            className="intel-progress"
+            role="status"
+            aria-live="polite"
+            aria-label="Online lookup progress"
+        >
+            <div className="d-flex flex-wrap justify-content-between gap-2 small">
+                <strong>
+                    {waiting
+                        ? JOB_STATE[job.state]
+                        : PHASE[progress.phase] ||
+                          JOB_STATE[job.state] ||
+                          job.state}
+                    {job.state === "queued" && job.queue_position != null
+                        ? ` (position ${job.queue_position + 1})`
+                        : ""}
+                </strong>
+                {total ? (
+                    <span className="text-muted">
+                        {done} of {total} lookups
+                    </span>
+                ) : null}
+            </div>
+            <div
+                className="progress my-1"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={waiting ? 0 : percent}
+                aria-label="Lookups done"
+            >
+                <div
+                    className={`progress-bar${waiting || !total ? " progress-bar-striped progress-bar-animated" : ""}`}
+                    style={{
+                        width: `${waiting || !total ? 100 : Math.max(percent, 3)}%`,
+                    }}
+                />
+            </div>
+            {current ? (
+                <p className="small mb-1">
+                    Asking {label(current.provider)} about {current.type}{" "}
+                    <code>{current.value}</code>
+                </p>
+            ) : null}
+            {progress.providers?.length ? (
+                <ul className="intel-progress-providers" aria-label="Providers">
+                    {progress.providers.map((p) => {
+                        const state = p.skipped
+                            ? "skipped"
+                            : p.done >= p.planned
+                              ? "done"
+                              : current?.provider === p.id
+                                ? "active"
+                                : "waiting";
+                        return (
+                            <li
+                                key={p.id}
+                                className={`intel-progress-chip is-${state}`}
+                                title={
+                                    p.skipped ||
+                                    `${p.done} of ${p.planned} lookups`
+                                }
+                            >
+                                <span>{label(p.id)}</span>
+                                <span className="text-muted">
+                                    {p.skipped || `${p.done}/${p.planned}`}
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            ) : null}
+        </div>
+    );
+}
+
 function Providers({ online, settings }) {
     const states = new Map((online?.providers || []).map((p) => [p.id, p]));
     const list = settings?.providers?.length
@@ -770,11 +893,27 @@ function Providers({ online, settings }) {
                                     </td>
                                     <td className="cell-short">
                                         <span
-                                            className={`intel-pill is-${state === "ok" ? "harmless" : state === "not_configured" ? "unknown" : "suspicious"}`}
+                                            className={`intel-pill is-${state === "ok" ? "harmless" : state === "not_configured" || state === "unsupported" ? "unknown" : "suspicious"}`}
+                                            title={
+                                                state === "unsupported"
+                                                    ? nothingToLookUp(
+                                                          p.observable_types,
+                                                      )
+                                                    : state === "not_configured"
+                                                      ? `Add a key in /etc/chimera/keys/${p.id} (see docs/chimera/intel-api-keys.md)`
+                                                      : undefined
+                                            }
                                         >
                                             {PROVIDER_STATE[state] ||
                                                 state.replaceAll("_", " ")}
                                         </span>
+                                        {state === "unsupported" ? (
+                                            <div className="small text-muted">
+                                                {nothingToLookUp(
+                                                    p.observable_types,
+                                                )}
+                                            </div>
+                                        ) : null}
                                     </td>
                                     <td className="cell-short">
                                         {run ? `${run.queried} lookups` : "–"}
@@ -791,12 +930,15 @@ function Providers({ online, settings }) {
             <p className="small text-muted mb-0">
                 A provider without a key is skipped. Keys live on the host in{" "}
                 <code>/etc/chimera/keys/&lt;provider&gt;</code> (abuse.ch:{" "}
-                <code>/etc/chimera/abusech-auth-key</code>); only hashes,
-                domains, IPs and URLs are sent, never the sample.
+                <code>/etc/chimera/abusech-auth-key</code>); the steps for each
+                provider are in <code>docs/chimera/intel-api-keys.md</code>.
+                Only hashes, domains, IPs and URLs are sent, never the sample.
             </p>
         </details>
     );
 }
+
+const ACTIVE_JOB = new Set(["queued", "deferred", "scheduled", "started"]);
 
 export function ThreatIntelCard({ analysisId, stage, isOffline = false }) {
     const [loaded, setLoaded] = useState(null);
@@ -804,7 +946,24 @@ export function ThreatIntelCard({ analysisId, stage, isOffline = false }) {
     const [running, setRunning] = useState(null);
     const [lookupError, setLookupError] = useState("");
     const [refreshStarted, setRefreshStarted] = useState(0);
+    const [job, setJob] = useState(null);
     const [copyError, setCopyError] = useState("");
+    // A lookup queued earlier (at upload, or from another tab) is shown as running too.
+    useEffect(() => {
+        if (isOffline || !analysisId) return;
+        let active = true;
+        getIntelStatus(analysisId)
+            .then(({ data }) => {
+                if (!active || !ACTIVE_JOB.has(data?.state)) return;
+                setJob(data);
+                setRefreshStarted(Date.parse(data.enqueued_at) || Date.now());
+                setRunning("online");
+            })
+            .catch(() => {});
+        return () => {
+            active = false;
+        };
+    }, [analysisId, isOffline]);
     useEffect(() => {
         if (isOffline) return;
         let active = true;
@@ -845,9 +1004,57 @@ export function ThreatIntelCard({ analysisId, stage, isOffline = false }) {
             controller.abort();
         };
     }, [analysisId, stage, isOffline]);
-    // Poll until the report shows the result of the job just queued (online lookup or offline re-check).
+    // Online lookup: follow the job (queue position, provider being asked, lookups done) every 2 s until it
+    // ends, then load the refreshed report.
     useEffect(() => {
-        if (!running) return;
+        if (running !== "online") return;
+        let active = true;
+        let timer;
+        const controller = new AbortController();
+        const deadline = Date.now() + 30 * 60 * 1000;
+        const poll = () =>
+            getIntelStatus(analysisId, { signal: controller.signal })
+                .then(({ data }) => {
+                    if (!active) return;
+                    if (ACTIVE_JOB.has(data?.state)) {
+                        setJob(data);
+                        if (Date.now() < deadline)
+                            timer = setTimeout(poll, 2000);
+                        else {
+                            setRunning(null);
+                            setLookupError("Still running; check again later.");
+                        }
+                        return;
+                    }
+                    return getIntel(analysisId, {
+                        signal: controller.signal,
+                    }).then(({ data: report }) => {
+                        if (!active) return;
+                        setLoaded(report);
+                        setJob(null);
+                        setRunning(null);
+                        if (data?.state === "failed")
+                            setLookupError(
+                                "The online lookup failed; see the intel worker's log.",
+                            );
+                    });
+                })
+                .catch(() => {
+                    if (!active) return;
+                    setJob(null);
+                    setRunning(null);
+                    setLookupError("Could not read the lookup's progress.");
+                });
+        timer = setTimeout(poll, 1000);
+        return () => {
+            active = false;
+            clearTimeout(timer);
+            controller.abort();
+        };
+    }, [running, analysisId]);
+    // Offline re-check: poll until the report shows the re-checked feeds.
+    useEffect(() => {
+        if (running !== "offline") return;
         let active = true;
         const controller = new AbortController();
         const timer = setInterval(() => {
@@ -859,12 +1066,7 @@ export function ThreatIntelCard({ analysisId, stage, isOffline = false }) {
             getIntel(analysisId, { signal: controller.signal })
                 .then(({ data }) => {
                     if (!active) return;
-                    const generated = data?.payload?.online?.generated_at;
-                    const changed =
-                        running === "online"
-                            ? generated &&
-                              Date.parse(generated) >= refreshStarted
-                            : data?.payload?.feeds?.length;
+                    const changed = data?.payload?.feeds?.length;
                     setLoaded(data);
                     if (changed) setRunning(null);
                 })
@@ -881,10 +1083,12 @@ export function ThreatIntelCard({ analysisId, stage, isOffline = false }) {
     const start = async (kind) => {
         setLookupError("");
         setRefreshStarted(Date.now());
+        if (kind === "online") setJob({ state: "queued" });
         setRunning(kind);
         try {
             await (kind === "online" ? refreshIntel : recheckIntel)(analysisId);
         } catch {
+            setJob(null);
             setRunning(null);
             setLookupError(
                 kind === "online"
@@ -952,6 +1156,7 @@ export function ThreatIntelCard({ analysisId, stage, isOffline = false }) {
                         </div>
                     ) : null}
                 </div>
+                {running === "online" ? <LookupProgress job={job} /> : null}
                 {lookupError && (
                     <p role="alert" className="small text-warning-emphasis">
                         {lookupError}

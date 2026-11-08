@@ -1,11 +1,16 @@
 [Unit]
-Description=CHIMERA offline threat-intel refresh (abuse.ch exports, MISP warninglist) on the host
+Description=CHIMERA offline threat-intel refresh (abuse.ch exports, CERT Polska warning list, MISP warninglist) on the host
 Documentation=file:///opt/chimera/docs/chimera/intel-offline.md
 After=network-online.target
 Wants=network-online.target
+# a failed download or import (network not up yet after resume, provider hiccup) is retried, not left stale
+StartLimitIntervalSec=2h
+StartLimitBurst=4
 
 [Service]
 Type=oneshot
+Restart=on-failure
+RestartSec=10min
 ExecStart=/opt/chimera/src/scripts/chimera/intel/update-host.sh
 User=root
 UMask=0077
