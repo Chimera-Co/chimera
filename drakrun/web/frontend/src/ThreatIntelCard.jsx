@@ -16,6 +16,7 @@ export const PROVIDER_LABEL = {
     otx: "AlienVault OTX",
     abuseipdb: "AbuseIPDB",
     greynoise: "GreyNoise",
+    ripestat: "RIPEstat",
     hashlookup: "CIRCL hashlookup",
     hybridanalysis: "Hybrid Analysis",
     urlscan: "urlscan.io",
@@ -752,7 +753,7 @@ export function nothingToLookUp(types) {
     const only = words.length ? words.join(" or ") : "indicators";
     return `It only takes ${only}, and this run had none to send.${
         (types || []).includes("ip") && !(types || []).includes("domain")
-            ? " Sandbox traffic goes to the simulated Internet, so a run only has public IPs when the sample connects to a hard-coded address or one is decoded from its configuration."
+            ? " Sandbox traffic goes to the simulated Internet, so a run only has public IPs when the sample connects to a hard-coded address, one is decoded from its configuration, or a domain it contacted still resolves (DNS over HTTPS)."
             : ""
     }`;
 }
