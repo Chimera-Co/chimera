@@ -109,8 +109,9 @@ All endpoints and rights require operator review on the connected host.
 | Feodo Tracker | IP blocklist JSON; IP and IP:port | 2 days | Review provider feed and redistribution terms |
 | SSLBL certificates | CSV; certificate SHA1 | 7 days | Review provider feed and redistribution terms |
 | SSLBL JA3 | CSV; JA3 MD5 | 7 days | Review provider feed and redistribution terms |
+| CERT Polska warning list | Text, one domain per line (hole.cert.pl, about 125k phishing and scam domains); subdomains match; `label` names the list | 2 days | Public list; review reuse terms before redistribution |
 | MISP warninglist | Warninglist JSON; benign domain/IP suppression | 30 days | Review upstream list-specific license and provenance |
-| Operator text feed | One indicator per line, `format = "text"`, one declared `indicator_types` entry | Operator defined | Must supply license/terms note and source URL |
+| Operator text feed | One indicator per line, `format = "text"`, one declared `indicator_types` entry, optional `label` (shown as the family) | Operator defined | Must supply license/terms note and source URL |
 
 abuse.ch terms restrict use to permitted not-for-profit activity, prohibit
 high-volume harvesting, and prohibit training or improving models with the data

@@ -57,8 +57,24 @@ def _type_findings(t: dict) -> list[dict]:
     return out
 
 
+def _from_external(result: dict, external: dict, name: str):
+    """A child-process tool's result into `result` (errors and timing as for an in-process stage)."""
+    entry = external.get(name)
+    if entry is None:
+        return None
+    if "wall_s" in entry:
+        result.setdefault("timings_s", {})[name] = entry["wall_s"]
+    if entry.get("error"):
+        result["errors"].append({"stage": name, "error": entry["error"]})
+        return None
+    return entry.get("result")
+
+
 def analyze(path: str, out_dir: str | None = None, file_name: str = "", timeout_s: float = 60.0,
-            verify_signature: bool = True, ember: bool = True, hardening: dict | None = None) -> dict:
+            verify_signature: bool = True, ember: bool = True, hardening: dict | None = None,
+            external: dict | None = None) -> dict:
+    """`external`: results of the tools run as child processes before hardening (external.run_before_hardening);
+    None (tests, development) runs them here."""
     t0 = time.monotonic()
     result: dict = {"schema": SCHEMA, "analyzer_version": ANALYZER_VERSION,
                     "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "errors": [], "findings": [],
@@ -209,8 +225,12 @@ def analyze(path: str, out_dir: str | None = None, file_name: str = "", timeout_
                                  "error": "archive members are listed, not unpacked or analyzed"})
     elif fmt == "pcap":
         # a run's traffic (sent by the memory-dump job), not an upload: HTTP fingerprints only
-        from .plugins.pcap import analyze_pcap
-        got = stage("pcap", lambda: analyze_pcap(path, timeout_s * 0.6), heavy=True)
+        if external is not None:
+            got = _from_external(result, external, "pcap")
+            got = (got, []) if got else None
+        else:
+            from .plugins.pcap import analyze_pcap
+            got = stage("pcap", lambda: analyze_pcap(path, timeout_s * 0.6), heavy=True)
         if got:
             result["pcap"], f = got
             result["findings"] += f
@@ -220,9 +240,12 @@ def analyze(path: str, out_dir: str | None = None, file_name: str = "", timeout_
     from .plugins import malware_config
 
     if malware_config.wanted(fmt):
-        configs = stage("malware_config",
-                        lambda: malware_config.extract(path, max(5.0, timeout_s - (time.monotonic() - t0) - 5)),
-                        heavy=True)
+        if external is not None:
+            configs = _from_external(result, external, "malware_config")
+        else:
+            configs = stage("malware_config",
+                            lambda: malware_config.extract(path, max(5.0, timeout_s - (time.monotonic() - t0) - 5)),
+                            heavy=True)
         if configs:
             result["malware_configs"] = configs
             result["findings"] += malware_config.findings(configs)

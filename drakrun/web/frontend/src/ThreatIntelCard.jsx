@@ -21,6 +21,7 @@ export const PROVIDER_LABEL = {
     urlscan: "urlscan.io",
 };
 const ORIGIN_LABEL = {
+    config: "malware configuration",
     sample: "The sample",
     dynamic: "Sample's processes",
     memory: "Sample's memory dumps",
@@ -353,6 +354,7 @@ function NetworkIndicators({ rows }) {
                     type: row.type,
                     observable: row.observable,
                     origin: row.origin,
+                    resolved_from: row.resolved_from,
                     rows: [],
                 });
             map.get(key).rows.push(row);
@@ -425,9 +427,11 @@ function NetworkIndicators({ rows }) {
                                     </td>
                                     <td className="cell-short">{g.type}</td>
                                     <td className="cell-short">
-                                        {ORIGIN_LABEL[g.origin] ||
-                                            g.origin ||
-                                            "–"}
+                                        {g.origin === "resolved"
+                                            ? `resolved from ${g.resolved_from} (DNS over HTTPS)`
+                                            : ORIGIN_LABEL[g.origin] ||
+                                              g.origin ||
+                                              "–"}
                                     </td>
                                     <td className="cell-short">
                                         <VerdictPill verdict={g.verdict} />

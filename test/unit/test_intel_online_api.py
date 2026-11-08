@@ -17,7 +17,7 @@ def test_inventory_no_secrets(api_client, base_config, tmp_path):
     (base_config.intel.keys_dir / "virustotal").write_text("secret-never-exposed")
     response = api_client.get("/api/intel/providers")
     assert response.status_code == 200
-    assert len(response.json["providers"]) == 10
+    assert len(response.json["providers"]) == 11
     assert "secret-never-exposed" not in response.text
     assert response.json["providers"][0]["configured"] is True
 

@@ -33,6 +33,7 @@ except ImportError:  # pragma: no cover
     pass
 from . import ember as _ember  # noqa: E402,F401
 from . import deep as _deep  # noqa: E402
+from .external import run_before_hardening  # noqa: E402
 
 try:  # the deep tools are large; load them now, while threads and file opens are still allowed
     import capa.main  # noqa: E402,F401
@@ -52,7 +53,14 @@ def main(argv=None) -> int:
     ap.add_argument("--no-signature", action="store_true")
     ap.add_argument("--deep", action="store_true", help="capa + FLOSS instead of the fast pass")
     a = ap.parse_args(argv)
-    hardening = harden_process(cpu_seconds=int(a.timeout) + 10, memory_bytes=a.memory_mb * 1024 * 1024)
+    external, timeout = None, a.timeout
+    if not a.deep:
+        # malduck / hfinger are separate programs: they run now, as limited children, because the hardened
+        # analyzer may not start any process. Their time comes out of the analyzer's budget.
+        started = time.monotonic()
+        external = run_before_hardening(a.sample, a.timeout, a.memory_mb * 1024 * 1024)
+        timeout = max(10.0, a.timeout - (time.monotonic() - started))
+    hardening = harden_process(cpu_seconds=int(timeout) + 10, memory_bytes=a.memory_mb * 1024 * 1024)
     if a.deep:
         try:
             _deep.run_deep(a.sample, a.out_dir, file_name=a.name, timeout_s=a.timeout)
@@ -69,8 +77,9 @@ def main(argv=None) -> int:
         print(error, file=sys.stderr)
         return code
     try:
-        _analyze.analyze(a.sample, a.out_dir, file_name=a.name, timeout_s=a.timeout,
-                         verify_signature=not a.no_signature, ember=not a.no_ember, hardening=hardening)
+        _analyze.analyze(a.sample, a.out_dir, file_name=a.name, timeout_s=timeout,
+                         verify_signature=not a.no_signature, ember=not a.no_ember, hardening=hardening,
+                         external=external)
         return 0
     except SampleError as exc:
         code, error = 2, str(exc)

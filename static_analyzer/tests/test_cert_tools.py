@@ -104,3 +104,47 @@ def test_malduck_runs_on_a_clean_pe_without_configs():
     r = analyze(str(sample), file_name="test.exe", ember=False, verify_signature=False)
     assert "malware_configs" not in r
     assert "malware_config" not in r.get("coverage", {}).get("failed_stages", [])
+
+
+def _main(tmp_path, name, data):
+    """The container's entry point, hardening included (the analyzer may start no process once hardened)."""
+    import json
+    import subprocess
+    import sys
+
+    sample, out = tmp_path / name, tmp_path / "out"
+    sample.write_bytes(data)
+    out.mkdir()
+    proc = subprocess.run([sys.executable, "-I", "-m", "chimera_static", str(sample), str(out), "--name", name,
+                           "--timeout", "60", "--no-ember"], capture_output=True, timeout=180)
+    assert proc.returncode == 0, proc.stderr[-500:]
+    return json.loads((out / "static.json").read_text())
+
+
+def test_external_kind_reads_magic_only(tmp_path):
+    from chimera_static.external import kind
+
+    for name, data, want in (("a.pcap", _pcap(HTTP), "pcap"), ("a.pdf", b"%PDF-1.7\n", "skip"),
+                             ("a.zip", b"PK\x03\x04rest", "skip"), ("a.bin", b"MZ\x90\x00", "binary"),
+                             ("empty", b"", "skip")):
+        (tmp_path / name).write_bytes(data)
+        assert kind(str(tmp_path / name)) == want, name
+
+
+@pytest.mark.skipif(shutil.which("hfinger") is None or shutil.which("tshark") is None,
+                    reason="hfinger/tshark only in the image")
+def test_hardened_entry_point_still_fingerprints_pcaps(tmp_path):
+    r = _main(tmp_path, "dump.pcap", _pcap(HTTP))
+    assert r["hardening"]["nproc"] is True  # the analyzer itself still may not start processes
+    assert r["type"]["format"] == "pcap"
+    assert len(r["pcap"]["http_fingerprints"]) == 1, r["errors"]
+    assert "pcap" in r["timings_s"]
+
+
+@pytest.mark.skipif(shutil.which("malduck") is None, reason="malduck only in the image")
+def test_hardened_entry_point_runs_malduck(tmp_path):
+    data = (pathlib.Path(__file__).parent / "fixtures" / "test.exe").read_bytes()
+    r = _main(tmp_path, "test.exe", data)
+    assert r["hardening"]["nproc"] is True
+    assert not [e for e in r["errors"] if e["stage"] == "malware_config"], r["errors"]
+    assert "malware_config" in r["timings_s"]

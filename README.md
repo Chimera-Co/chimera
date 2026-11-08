@@ -46,7 +46,7 @@ the [demo release](https://github.com/Chimera-Co/chimera/releases/tag/demo-2026-
 | **Windows and Linux guests** | Windows 10 and a Debian 12 desktop, restored from a clean snapshot for every run and destroyed afterwards; live VNC view and screenshots. |
 | **Static analysis in an isolated VM** | Content-based type detection (PE, ELF, Mach-O, PDF, Office, RTF, LNK, archives, scripts), format parsers, YARA, capa, FLOSS and Ghidra, inside a Xen guest with no NIC and a read-only disk. Android APK and iOS IPA through MobSF. |
 | **Android dynamic analysis** | APKs run in an Android-x86 9 guest under Xen with MobSF's dynamic analyzer and Frida (API monitor, SSL-pinning and anti-emulator bypasses), screenshots, logcat and a PCAP, behind the simulated internet. |
-| **Memory-dump scanning** | Regions DRAKVUF dumps during the run (injected or unpacked code) go through the same analyzers. |
+| **Memory-dump scanning** | Regions DRAKVUF dumps during the run (injected or unpacked code) go through the same analyzers, including malware-configuration extraction (CERT Polska's malduck: njRAT, Remcos, REvil, Cobalt Strike, GraphicalProton) whose C2 addresses feed the threat intel. |
 | **Fused ML verdict** | A behaviour model (LightGBM) and per-format file models (EMBER2024) score separately; the fusion returns one label with the reasons from each part, and abstains when it cannot judge. |
 | **Threat intelligence** | Offline abuse.ch feeds and MISP warninglists, Maltrail family/APT attribution, and VirusTotal hash lookups. Samples are never uploaded. |
 | **Fail-closed network containment** | Guests reach only INetSim in its own network namespace; anything else is dropped and logged. Full PCAP per run. |
@@ -168,6 +168,9 @@ It stands on [DRAKVUF Sandbox](https://github.com/CERT-Polska/drakvuf-sandbox) b
 [DRAKVUF](https://github.com/tklengyel/drakvuf) and LibVMI by Tamas K Lengyel, [Xen](https://xenproject.org/),
 [capa](https://github.com/mandiant/capa) and its rules, the
 [ReversingLabs YARA rules](https://github.com/reversinglabs/reversinglabs-yara-rules),
-[EMBER2024](https://github.com/FutureComputing4AI/EMBER2024), [INetSim](https://www.inetsim.org/), MobSF and Maltrail.
+[EMBER2024](https://github.com/FutureComputing4AI/EMBER2024), [INetSim](https://www.inetsim.org/), MobSF and Maltrail,
+and CERT Polska's [malduck](https://github.com/CERT-Polska/malduck) with its
+[modules](https://github.com/CERT-Polska/malduck-modules), [hfinger](https://github.com/CERT-Polska/hfinger) and
+[warning list](https://hole.cert.pl/).
 
 Licensed under the terms in [LICENSE](LICENSE). Submodules and bundled components keep their own licences.

@@ -14,6 +14,8 @@ from . import inventory, providers
 from .base import HASHES
 from .cache import Cache
 from .noise import background, non_public, string_artifact
+from .resolve import public_ipv4
+from .resolve import resolve as resolve_domains
 
 
 def read_json(path):
@@ -24,7 +26,7 @@ def read_json(path):
         return {}
 
 
-def collect(directory, static_directory, config, network=None):
+def collect(directory, static_directory, config, network=None, resolve=None):
     """(kind, value, origin) to look up: the sample's hash, then what its own processes contacted, then what
     nobody can attribute, then strings in the file. Other guest processes' traffic is not looked up.
     """
@@ -78,8 +80,9 @@ def collect(directory, static_directory, config, network=None):
         "config": 1,
         "dynamic": 1,
         "memory": 2,
-        "unattributed": 3,
-        "static": 4,
+        "resolved": 3,
+        "unattributed": 4,
+        "static": 5,
     }
     kind_rank = {"sha256": 0, "sha1": 1, "md5": 2, "domain": 3, "url": 4, "ip": 5}
     candidates = sorted(
@@ -129,6 +132,21 @@ def collect(directory, static_directory, config, network=None):
         selected.append((kind, value, origin))
         counts[kind] += 1
         seen.add((kind, value))
+    if resolve is not None:
+        domains = [
+            v for k, v, o in selected if k == "domain" and o in {"dynamic", "config"}
+        ]
+        for _, ip in resolve(domains[: config.resolve_max]):
+            if (
+                public_ipv4(ip)
+                and not any(ipaddress.ip_address(ip) in subnet for subnet in excluded)
+                and ("ip", ip) not in seen
+                and counts["ip"] < config.max_observables
+            ):
+                selected.append(("ip", ip, "resolved"))
+                seen.add(("ip", ip))
+                counts["ip"] += 1
+        selected.sort(key=lambda c: (origin_rank[c[2]], kind_rank[c[0]]))
     return selected
 
 
@@ -183,11 +201,31 @@ def run(directory, static_directory, config, network=None, scope=None, progress=
     the end (see progress_doc)."""
     report = progress or (lambda doc: None)
     report(dict(phase="collecting", total=0, done=0, current=None, providers=[]))
-    items = collect(directory, static_directory, config, network)
+    cache = Cache(config.cache_path)
+    resolved = {}
+
+    def resolving(domains):
+        report(
+            dict(phase="resolving domains", total=0, done=0, current=None, providers=[])
+        )
+        pairs = resolve_domains(domains, config, cache)
+        for domain, ip in pairs:
+            if ip not in resolved.setdefault(domain, []):
+                resolved[domain].append(ip)
+        return pairs
+
+    items = collect(
+        directory,
+        static_directory,
+        config,
+        network,
+        resolve=(
+            resolving if scope != "sample-hash" and config.resolve_domains else None
+        ),
+    )
     if scope == "sample-hash":
         items = [item for item in items if item[2] == "sample"]
     results, states = [], []
-    cache = Cache(config.cache_path)
     planned = plan(items, config, scope)
     done = Counter()
     for provider, info, wanted in planned:
@@ -208,6 +246,10 @@ def run(directory, static_directory, config, network=None, scope=None, progress=
             rows.append(
                 {**provider.lookup(kind, value, config, cache), "origin": origin}
             )
+            if origin == "resolved":
+                rows[-1]["resolved_from"] = next(
+                    d for d, ips in resolved.items() if value in ips
+                )
             done[provider.id] += 1
         statuses = Counter(row["status"] for row in rows)
         status = (
@@ -263,6 +305,7 @@ def run(directory, static_directory, config, network=None, scope=None, progress=
         connectivity="partial" if ran and offline else "online" if ran else "offline",
         providers=states,
         results=results,
+        resolved=[dict(domain=d, ips=ips) for d, ips in resolved.items()],
         summary=dict(
             observables=len(items),
             # A match is a provider calling it malicious or suspicious; "seen" only means the provider

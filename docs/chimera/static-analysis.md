@@ -52,6 +52,26 @@ insight indicators of severity 2+ (for example injection imports in unpacked cod
 IOCs. Results go to `memdumps.json` (schema `chimera-memdumps/1`) and the
 "Memory dumps" tab. They are **not** classifier features: they never change the verdict.
 
+### Malware configurations and HTTP fingerprints (CERT Polska tools)
+
+- **malduck** with CERT Polska's public modules (`static_analyzer/malduck-modules`, a pinned submodule: njRAT,
+  Remcos, REvil, Cobalt Strike, GraphicalProton) runs on the upload and on every memory dump. A recognised
+  configuration keeps its family, C2 endpoints, network indicators and a bounded copy of its other fields
+  (`static.json` / each dump's `malware_configs`; merged across dumps in `memdumps.json` `malware_configs`, with
+  the dumps it came from). Its C2 domains, IPs and URLs become report IOCs and online-lookup candidates, and a
+  decoded configuration sets the intel assessment to "malicious: malware config". It does not feed the classifier.
+- **hfinger** fingerprints every HTTP request in the run's `dump.pcap` (through tshark, in the same sandbox, PCAPs up
+  to 64 MiB) after the dump scan: `memdumps.json` `network_fingerprints`. One family's requests share a fingerprint
+  whatever server they go to, so it can be searched for in other runs and in proxy logs.
+
+Both are GPL-3.0 and run as separate programs inside the analyzer container; only their JSON output is read.
+The analyzer forbids itself any child process once hardened (`RLIMIT_NPROC=0`), so `chimera_static/external.py`
+runs the one tool a sample needs (chosen from its first bytes, nothing parsed) before hardening, as a child with
+its own limits (no core dumps, CPU time, address space, output size, open files, no new privileges; malduck may
+not start processes either), inside the same container limits, out of the analyzer's time budget.
+Verified on analysis 1bb775cb (PO10272026.PDF.exe): the Remcos module decodes the config from its dumps (C2
+`onboard.radiantfluxstudio.com:2404`).
+
 ## Static VM lifecycle (on demand)
 
 The static-analysis VM is not started at boot. The first static job (fast pass, deep pass, Ghidra, memory-dump

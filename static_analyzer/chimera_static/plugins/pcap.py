@@ -22,7 +22,7 @@ def available() -> bool:
     return shutil.which("hfinger") is not None and shutil.which("tshark") is not None
 
 
-def analyze_pcap(path: str, timeout_s: float) -> tuple[dict, list[dict]]:
+def analyze_pcap(path: str, timeout_s: float, preexec=None) -> tuple[dict, list[dict]]:
     if not available():
         raise RuntimeError("hfinger or tshark is not installed")
     proc = subprocess.run(
@@ -32,6 +32,8 @@ def analyze_pcap(path: str, timeout_s: float) -> tuple[dict, list[dict]]:
         # tshark wants a writable home for its profile directory; /tmp is the container's only writable place
         env={"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"), "HOME": "/tmp",
              "PYTHONDONTWRITEBYTECODE": "1"},
+        preexec_fn=preexec,
+        stdin=subprocess.DEVNULL,
     )
     text = proc.stdout.decode("utf-8", "replace").strip()
     rows = json.loads(text) if text else []

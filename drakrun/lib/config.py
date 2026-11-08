@@ -124,6 +124,7 @@ class IntelConfigSection(BaseModel):
                 "otx",
                 "abuseipdb",
                 "greynoise",
+                "ripestat",
                 "hashlookup",
                 "hybridanalysis",
                 "urlscan",
@@ -133,6 +134,8 @@ class IntelConfigSection(BaseModel):
     )
     # Providers asked about the sample's own hash on every analysis, also when online intel was not ticked.
     hash_providers: List[str] = Field(default_factory=list)
+    resolve_domains: bool = True
+    resolve_max: int = Field(default=10, ge=0, le=1000)
     max_observables: int = Field(default=20, gt=0, le=1000)
     request_timeout_s: float = Field(default=10, gt=0, le=10, allow_inf_nan=False)
     enabled: bool = False

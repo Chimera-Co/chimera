@@ -10,6 +10,7 @@ IDS = (
     "otx",
     "abuseipdb",
     "greynoise",
+    "ripestat",
     "hashlookup",
     "hybridanalysis",
     "urlscan",

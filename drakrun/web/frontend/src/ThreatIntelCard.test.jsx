@@ -399,3 +399,42 @@ it("explains why an IP-only provider had nothing to look up", async () => {
         "It only takes file hashes, and this run had none to send.",
     );
 });
+
+it("labels resolved addresses and malware configuration origins", () => {
+    render(
+        <ThreatIntelCard
+            stage={{
+                status: "ok",
+                payload: {
+                    ...payload,
+                    online: {
+                        providers: [],
+                        results: [
+                            {
+                                provider: "ripestat",
+                                type: "ip",
+                                observable: "8.8.8.8",
+                                status: "ok",
+                                verdict: "unknown",
+                                origin: "resolved",
+                                resolved_from: "c2.example",
+                            },
+                            {
+                                provider: "otx",
+                                type: "domain",
+                                observable: "c2.example",
+                                status: "ok",
+                                verdict: "unknown",
+                                origin: "config",
+                            },
+                        ],
+                    },
+                },
+            }}
+        />,
+    );
+    expect(
+        screen.getByText("resolved from c2.example (DNS over HTTPS)"),
+    ).toBeTruthy();
+    expect(screen.getByText("malware configuration")).toBeTruthy();
+});

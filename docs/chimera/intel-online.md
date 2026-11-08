@@ -62,6 +62,13 @@ read -rsp "VirusTotal key: " k && echo && printf '%s' "$k" | sudo tee /etc/chime
 
 The file name is the provider id (`virustotal`, `otx`, `abuseipdb`, `greynoise`, `hybridanalysis`, `urlscan`);
 abuse.ch providers use `/etc/chimera/abusech-auth-key`.
+Signup links, where each provider shows its key, one paste command per provider and why a ready provider can
+show "Nothing to look up": [intel-api-keys.md](intel-api-keys.md).
+
+While a lookup runs, the console follows it through `GET /api/intel/<id>/online/status` (state, queue position,
+the provider and indicator being asked, lookups done per provider). Pressing the button again while one is queued
+or running follows that one instead of queueing another. Results export as CSV, JSON, a STIX 2.1 bundle
+(`/api/chimera_report/<id>/stix.json`) or a MISP event (`/api/chimera_report/<id>/misp.json`).
 
 What is looked up: the sample's hashes, then observables from the **sample's own process tree** (DNS, HTTP,
 TLS SNI, connections, files it dropped), then IOCs from memory dumps of that tree, then static strings. Activity
@@ -186,3 +193,11 @@ with Wi-Fi off the lookup records `offline`.
 Assessment reasons explain differences. Online matches carry evidence IDs and IOC
 sources `intel:<provider>`. No-match results never mean clean. Offline feeds remain
 visible even when every online provider is unavailable.
+
+**Domain resolution.** Inside the sandbox every DNS answer is the simulated Internet, so a run's domains have no
+real address. Resolution uses Cloudflare DNS over HTTPS (cloudflare-dns.com): up to ten domains observed dynamically or
+decoded from malware configuration are sent as A-record queries. Only public IPv4 answers are passed to IP
+providers, including GreyNoise, AbuseIPDB and RIPEstat. Answers are cached for one day; the report records the
+source domain. These are current DNS answers, not proof of the address used during the analysis. Disable this
+with `[intel] resolve_domains = false`; `resolve_max`
+controls the domain limit.

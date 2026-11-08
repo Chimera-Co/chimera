@@ -45,6 +45,7 @@ FIXTURES = {
         }
     },
     "abuseipdb": {"data": {"abuseConfidenceScore": 90, "totalReports": 5}},
+    "ripestat": {"data": {"asns": [{"asn": 15169, "holder": "GOOGLE"}], "resource": "8.8.8.0/24", "is_less_specific": False, "announced": True}},
     "greynoise": {
         "noise": True,
         "riot": True,
@@ -238,7 +239,7 @@ def test_offline_orchestration(setup, tmp_path, monkeypatch):
     (tmp_path / "metadata.json").write_text(json.dumps({"file": {"sha256": HASH}}))
     result = run(tmp_path, tmp_path, config)
     assert result["connectivity"] == "offline"
-    assert len(result["providers"]) == 10
+    assert len(result["providers"]) == 11
     assert all(r["status"] == "offline" for r in result["results"])
     opener.open.assert_not_called()
 
@@ -647,3 +648,125 @@ def test_config_c2_is_looked_up_and_sets_the_basis(setup, tmp_path):
     assert not any(v == "203.0.113.9" for _, v, _ in selected)  # documentation range: not public
     got = assessment("suspicious", [], config_families=["remcos"])
     assert (got["label"], got["basis"]) == ("malicious", "malware config")
+
+
+def test_ripestat_context():
+    provider = next(p for p in providers() if p.id == "ripestat")
+    result = provider.parse(FIXTURES["ripestat"], "ip", "8.8.8.8")
+    assert result == dict(
+        verdict="unknown",
+        tags=["AS15169"],
+        details=dict(asn=15169, holder="GOOGLE", prefix="8.8.8.0/24", announced=True),
+    )
+    assert provider.parse({"data": {"announced": False}}, "ip", "8.8.8.8") == {
+        "status": "not_found"
+    }
+    assert provider.parse({}, "ip", "8.8.8.8") == {"status": "not_found"}
+    assert "sourceapp=chimera" in provider.request("ip", "8.8.8.8")[0]
+
+
+def test_doh_answers_and_cache(setup):
+    from drakrun.lib.intel.online.resolve import resolve
+
+    config, cache, opener = setup
+    opener.open.return_value.__enter__.return_value.read.return_value = json.dumps(
+        {
+            "Status": 0,
+            "Answer": [
+                {"type": 1, "data": "8.8.8.8"},
+                {"type": 1, "data": "10.0.0.1"},
+                {"type": 1, "data": "224.0.0.1"},
+                {"type": 1, "data": "240.0.0.1"},
+                {"type": 1, "data": "::1"},
+                {"type": 5, "data": "alias.example"},
+                {"type": 1, "data": "8.8.8.8"},
+            ],
+        }
+    ).encode()
+    assert resolve(["c2.example"], config, cache) == [("c2.example", "8.8.8.8")]
+    assert resolve(["c2.example"], config, cache) == [("c2.example", "8.8.8.8")]
+    assert opener.open.call_count == 1
+    request = opener.open.call_args.args[0]
+    assert (
+        request.full_url
+        == "https://cloudflare-dns.com/dns-query?name=c2.example&type=A"
+    )
+    assert request.get_header("Accept") == "application/dns-json"
+    assert opener.open.call_args.kwargs["timeout"] == 10
+    assert cache.get("doh", "domain", "c2.example") == ["8.8.8.8"]
+
+
+@pytest.mark.parametrize(
+    "scope,enabled,limit",
+    [(None, True, 1), (None, True, 10), ("sample-hash", True, 10), (None, False, 10)],
+)
+def test_run_resolution(setup, tmp_path, monkeypatch, scope, enabled, limit):
+    from importlib import import_module
+
+    module = import_module("drakrun.lib.intel.online.run")
+    config, _, _ = setup
+    config.resolve_domains = enabled
+    config.resolve_max = limit
+    (tmp_path / "report.json").write_text(
+        json.dumps(
+            {
+                "dns_queries": [{"domain": "dynamic.example"}],
+            }
+        )
+    )
+    (tmp_path / "static.json").write_text(
+        json.dumps(
+            {
+                "malware_configs": [{"iocs": {"domains": ["config.example"]}}],
+                "universal": {"iocs": {"domains": ["static.example"]}},
+            }
+        )
+    )
+    (tmp_path / "memdumps.json").write_text(
+        json.dumps(
+            {
+                "scanned": [
+                    {"sample_tree": True, "iocs": {"domains": ["memory.example"]}}
+                ],
+            }
+        )
+    )
+    resolver = MagicMock(
+        side_effect=lambda domains, *_: [(d, "8.8.8.8") for d in domains]
+    )
+    monkeypatch.setattr(module, "resolve_domains", resolver)
+    monkeypatch.setattr(
+        base.Provider, "lookup", lambda self, kind, value, *_: self.result(kind, value)
+    )
+    progress = []
+    doc = run(tmp_path, tmp_path, config, scope=scope, progress=progress.append)
+    rows = [r for r in doc["results"] if r["origin"] == "resolved"]
+    if scope == "sample-hash" or not enabled:
+        resolver.assert_not_called()
+        assert not rows and doc["resolved"] == []
+    else:
+        domains = resolver.call_args.args[0]
+        assert domains == ["dynamic.example", "config.example"][:limit]
+        assert rows and all(r["resolved_from"] == domains[0] for r in rows)
+        assert len({r["observable"] for r in rows}) == 1
+        assert doc["resolved"] == [{"domain": d, "ips": ["8.8.8.8"]} for d in domains]
+        assert any(p["phase"] == "resolving domains" for p in progress)
+
+
+@pytest.mark.parametrize("failure", ["oversize", "redirect", "offline", "budget"])
+def test_doh_safety(setup, monkeypatch, failure):
+    from drakrun.lib.intel.online.resolve import resolve
+
+    config, cache, opener = setup
+    if failure == "oversize":
+        opener.open.return_value.__enter__.return_value.read.return_value = b" " * (
+            2 * 1024 * 1024 + 1
+        )
+    elif failure == "redirect":
+        opener.open.side_effect = ValueError("redirect refused")
+    elif failure == "offline":
+        monkeypatch.setattr(base, "probe", lambda host: False)
+    else:
+        monkeypatch.setattr(cache, "reserve", lambda *args: False)
+    assert resolve(["c2.example"], config, cache) == []
+    assert cache.get("doh", "domain", "c2.example") is None
