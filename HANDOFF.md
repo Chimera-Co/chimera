@@ -48,7 +48,7 @@ flowchart TB
 - **`perdedor/`**: submodule, the evasion self-test suite ([Chimera-Co/perdedor](https://github.com/Chimera-Co/perdedor)).
 - **`drakvuf/`**: submodule. The *installed* DRAKVUF on the host is built separately (see §4), not from this pin.
 
-## 2. Where things stand (31 Oct 2026)
+## 2. Where things stand (8 Nov 2026)
 
 **Done and deployed**
 
@@ -62,8 +62,13 @@ flowchart TB
 - Static analysis in the isolated VM (fast pass + deep pass with capa, FLOSS, Ghidra), APK/IPA through MobSF.
 - Classifier v0 (dynamic LightGBM + static EMBER2024 + fusion) deployed; **v1 retrain code is merged** and waits for a
   run on the machine with the WinMET data (`classifier/RETRAIN.md`).
-- Threat intel: offline abuse.ch + warninglists bundle (daily timer), Maltrail trails (6-hourly), VirusTotal hash
-  lookups.
+- Threat intel: offline abuse.ch + CERT Polska warning list + MISP warninglists bundle (daily timer), Maltrail
+  trails (6-hourly), online lookups (VirusTotal, abuse.ch, OTX, AbuseIPDB, GreyNoise, RIPEstat, CIRCL, Hybrid
+  Analysis, urlscan) with a live progress view, DNS-over-HTTPS resolution of contacted domains, and STIX 2.1 / MISP
+  exports. Keys: [intel-api-keys.md](docs/chimera/intel-api-keys.md).
+- Malware-configuration extraction (CERT Polska malduck + modules) on uploads and memory dumps, HTTP request
+  fingerprints (hfinger) of each run's traffic.
+- Android dynamic analysis (Android-x86 + MobSF + Frida): [mobile-dynamic.md](docs/chimera/mobile-dynamic.md).
 - Long analyses (up to 24 h) and experimental sleep shortening (`delaymon`, off by default).
 - Console Home and Docs pages with the demo video; the same pages publish to GitHub Pages.
 
@@ -87,7 +92,7 @@ flowchart TB
 8. Remaining al-khaser detections (WMI sensors, ACPI/SMBIOS table counts, Hyper-V objects, `parent_is_explorer`,
    RDTSC VM-exit cost): residuals documented in `hardening-design.md` §6–7. Do not re-chase CPUID or mouse checks.
 9. Future scope (after 31 Oct): URL analysis mode, further anti-evasion work, iOS dynamic analysis (Corellium,
-   opt-in). Android dynamic analysis landed 8 Nov: `docs/chimera/mobile-dynamic.md`. See the
+   opt-in). See the
    [limitations page](https://chimera-co.github.io/chimera/#/docs/limitations) and `docs/chimera/plan/roadmap.md`.
 
 ## 3. The host in production
