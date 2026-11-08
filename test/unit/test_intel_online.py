@@ -45,7 +45,14 @@ FIXTURES = {
         }
     },
     "abuseipdb": {"data": {"abuseConfidenceScore": 90, "totalReports": 5}},
-    "ripestat": {"data": {"asns": [{"asn": 15169, "holder": "GOOGLE"}], "resource": "8.8.8.0/24", "is_less_specific": False, "announced": True}},
+    "ripestat": {
+        "data": {
+            "asns": [{"asn": 15169, "holder": "GOOGLE"}],
+            "resource": "8.8.8.0/24",
+            "is_less_specific": False,
+            "announced": True,
+        }
+    },
     "greynoise": {
         "noise": True,
         "riot": True,
@@ -53,9 +60,17 @@ FIXTURES = {
         "name": "scanner",
     },
     "hashlookup": {"SHA-256": HASH, "FileName": "known.exe", "source": "NSRL"},
-    "hybridanalysis": [
-        {"verdict": "malicious", "threat_score": 90, "vx_family": "test-family"}
-    ],
+    "hybridanalysis": {
+        "sha256s": [HASH],
+        "reports": [
+            {
+                "id": "r1",
+                "environment_description": "Windows 10 64 bit",
+                "state": "SUCCESS",
+                "verdict": "malicious",
+            }
+        ],
+    },
     "urlscan": {
         "total": 1,
         "results": [
@@ -302,7 +317,7 @@ def test_report_stage_and_evidence(tmp_path):
         ("malwarebazaar", {"query_status": "hash_not_found"}),
         ("threatfox", {"query_status": "no_result"}),
         ("urlhaus", {"query_status": "no_results"}),
-        ("hybridanalysis", []),
+        ("hybridanalysis", {"sha256s": [], "reports": []}),
         ("urlscan", {"results": []}),
         ("hashlookup", {}),
     ],
@@ -372,12 +387,17 @@ def test_memory_iocs_and_guest_address_excluded(setup, tmp_path):
                             "ips": ["93.184.216.34", "45.33.32.156"],
                         },
                     },
-                    {"sample_tree": False, "iocs": {"domains": ["windows-only.example"]}},
+                    {
+                        "sample_tree": False,
+                        "iocs": {"domains": ["windows-only.example"]},
+                    },
                 ]
             }
         )
     )
-    result = collect(tmp_path, tmp_path, config, SimpleNamespace(dns_server="93.184.216.34"))
+    result = collect(
+        tmp_path, tmp_path, config, SimpleNamespace(dns_server="93.184.216.34")
+    )
     assert ("domain", "memory.example", "memory") in result
     assert not any(v == "93.184.216.34" for _, v, _ in result)
     assert ("ip", "45.33.32.156", "memory") in result
@@ -484,34 +504,64 @@ def test_enqueue_uses_the_pipeline_job_id(setup, monkeypatch):
     )
 
 
-def test_only_the_sample_tree_and_public_names_are_looked_up(setup, tmp_path, monkeypatch):
+def test_only_the_sample_tree_and_public_names_are_looked_up(
+    setup, tmp_path, monkeypatch
+):
     config, _, _ = setup
     directory = tmp_path / "scoped"
     directory.mkdir()
-    (directory / "report.json").write_text(json.dumps({
-        "startup": {"process": 7},
-        "processes": [{"seqid": 1, "parent_seqid": None}, {"seqid": 7, "parent_seqid": 1},
-                      {"seqid": 8, "parent_seqid": 7}],
-        "dns_queries": [
-            {"domain": "c2.evil.example", "process_seqids": [8]},          # child of the sample
-            {"domain": "telemetry.other.example", "process_seqids": [1]},  # another guest process
-            {"domain": "localhost", "process_seqids": [7]},                # never public
-            {"domain": "ctldl.windowsupdate.com", "process_seqids": [7]},  # Windows background service
-            {"domain": "orphan.example", "process_seqids": []},
-        ],
-        "http_requests": [{"server_name": "g.live.com", "path": "/payload.bin", "server_port": 443,
-                           "process_seqid": 8}],
-    }))
+    (directory / "report.json").write_text(
+        json.dumps(
+            {
+                "startup": {"process": 7},
+                "processes": [
+                    {"seqid": 1, "parent_seqid": None},
+                    {"seqid": 7, "parent_seqid": 1},
+                    {"seqid": 8, "parent_seqid": 7},
+                ],
+                "dns_queries": [
+                    {
+                        "domain": "c2.evil.example",
+                        "process_seqids": [8],
+                    },  # child of the sample
+                    {
+                        "domain": "telemetry.other.example",
+                        "process_seqids": [1],
+                    },  # another guest process
+                    {"domain": "localhost", "process_seqids": [7]},  # never public
+                    {
+                        "domain": "ctldl.windowsupdate.com",
+                        "process_seqids": [7],
+                    },  # Windows background service
+                    {"domain": "orphan.example", "process_seqids": []},
+                ],
+                "http_requests": [
+                    {
+                        "server_name": "g.live.com",
+                        "path": "/payload.bin",
+                        "server_port": 443,
+                        "process_seqid": 8,
+                    }
+                ],
+            }
+        )
+    )
     selected = collect(directory, directory, config)
     assert ("domain", "c2.evil.example", "dynamic") in selected
     assert ("domain", "orphan.example", "unattributed") in selected
-    assert ("url", "https://g.live.com/payload.bin", "dynamic") in selected  # the sample fetched it
+    assert (
+        "url",
+        "https://g.live.com/payload.bin",
+        "dynamic",
+    ) in selected  # the sample fetched it
     values = [v for _, v, _ in selected]
     assert "telemetry.other.example" not in values and "localhost" not in values
     assert "ctldl.windowsupdate.com" not in values and "g.live.com" not in values
 
 
-def test_unconfigured_providers_are_not_called_and_matches_need_a_flag(setup, tmp_path, monkeypatch):
+def test_unconfigured_providers_are_not_called_and_matches_need_a_flag(
+    setup, tmp_path, monkeypatch
+):
     config, _, _ = setup
     (config.keys_dir / "virustotal").unlink()
     looked = []
@@ -523,12 +573,18 @@ def test_unconfigured_providers_are_not_called_and_matches_need_a_flag(setup, tm
     )
     directory = tmp_path / "unconfigured"
     directory.mkdir()
-    (directory / "report.json").write_text(json.dumps({"dns_queries": [{"domain": "a.example"}]}))
+    (directory / "report.json").write_text(
+        json.dumps({"dns_queries": [{"domain": "a.example"}]})
+    )
     doc = run(directory, directory, config)
     assert "virustotal" not in looked
     vt = next(p for p in doc["providers"] if p["id"] == "virustotal")
-    assert vt["status"] == "not_configured" and not any(r["provider"] == "virustotal" for r in doc["results"])
-    assert doc["summary"]["matches"] == 0 and doc["summary"]["seen"] == len(doc["results"])
+    assert vt["status"] == "not_configured" and not any(
+        r["provider"] == "virustotal" for r in doc["results"]
+    )
+    assert doc["summary"]["matches"] == 0 and doc["summary"]["seen"] == len(
+        doc["results"]
+    )
     assert all(r["origin"] == "dynamic" for r in doc["results"])
 
 
@@ -536,16 +592,34 @@ def test_string_artifacts_are_not_looked_up(setup, tmp_path):
     config, _, _ = setup
     directory = tmp_path / "strings"
     directory.mkdir()
-    (directory / "static.json").write_text(json.dumps({"universal": {"iocs": {
-        "ips": ["1.9.16.1", "185.220.101.4"],
-        "domains": ["cuassistant.reboot.force.time.interval.in", "e.com", "evil-c2.example"],
-        "urls": ["http://185.220.101.4/gate.php"],
-    }}}))
+    (directory / "static.json").write_text(
+        json.dumps(
+            {
+                "universal": {
+                    "iocs": {
+                        "ips": ["1.9.16.1", "185.220.101.4"],
+                        "domains": [
+                            "cuassistant.reboot.force.time.interval.in",
+                            "e.com",
+                            "evil-c2.example",
+                        ],
+                        "urls": ["http://185.220.101.4/gate.php"],
+                    }
+                }
+            }
+        )
+    )
     values = [v for _, v, _ in collect(directory, directory, config)]
-    assert values == ["evil-c2.example", "http://185.220.101.4/gate.php", "185.220.101.4"]
+    assert values == [
+        "evil-c2.example",
+        "http://185.220.101.4/gate.php",
+        "185.220.101.4",
+    ]
 
 
-def test_hash_providers_get_the_sample_hash_without_online_intel(setup, tmp_path, monkeypatch):
+def test_hash_providers_get_the_sample_hash_without_online_intel(
+    setup, tmp_path, monkeypatch
+):
     from types import SimpleNamespace
 
     from drakrun.lib.intel.online.run import enqueue
@@ -613,11 +687,15 @@ def test_only_the_sample_hash_is_weighed():
     )
 
 
-def test_progress_reports_each_lookup_and_skipped_providers(setup, tmp_path, monkeypatch):
+def test_progress_reports_each_lookup_and_skipped_providers(
+    setup, tmp_path, monkeypatch
+):
     config, _, _ = setup
     (config.keys_dir / "otx").unlink()  # one provider without its key
     monkeypatch.setattr(
-        base.Provider, "lookup", lambda self, kind, value, cfg, cache: self.result(kind, value)
+        base.Provider,
+        "lookup",
+        lambda self, kind, value, cfg, cache: self.result(kind, value),
     )
     directory = tmp_path / "progress"
     directory.mkdir()
@@ -628,10 +706,14 @@ def test_progress_reports_each_lookup_and_skipped_providers(setup, tmp_path, mon
     lookups = [d for d in seen if d["phase"] == "lookups"]
     assert lookups[0]["done"] == 0 and lookups[0]["current"]["value"] == HASH
     final = seen[-1]
-    assert final["phase"] == "writing report" and final["done"] == final["total"] == len(lookups)
+    assert final["phase"] == "writing report" and final["done"] == final[
+        "total"
+    ] == len(lookups)
     by_id = {p["id"]: p for p in final["providers"]}
     assert by_id["otx"]["skipped"] == "no API key"
-    assert by_id["greynoise"]["skipped"] == "nothing to look up"  # IP-only provider, no IPs here
+    assert (
+        by_id["greynoise"]["skipped"] == "nothing to look up"
+    )  # IP-only provider, no IPs here
     assert by_id["virustotal"]["planned"] == by_id["virustotal"]["done"] == 1
 
 
@@ -639,13 +721,30 @@ def test_config_c2_is_looked_up_and_sets_the_basis(setup, tmp_path):
     config, _, _ = setup
     directory = tmp_path / "config"
     directory.mkdir()
-    (directory / "memdumps.json").write_text(json.dumps({"scanned": [], "malware_configs": [
-        {"family": "remcos", "c2": ["c2.example.org:2404"],
-         "iocs": {"domains": ["c2.example.org"], "urls": [], "ips": ["203.0.113.9", "8.8.4.4"]}}]}))
+    (directory / "memdumps.json").write_text(
+        json.dumps(
+            {
+                "scanned": [],
+                "malware_configs": [
+                    {
+                        "family": "remcos",
+                        "c2": ["c2.example.org:2404"],
+                        "iocs": {
+                            "domains": ["c2.example.org"],
+                            "urls": [],
+                            "ips": ["203.0.113.9", "8.8.4.4"],
+                        },
+                    }
+                ],
+            }
+        )
+    )
     selected = collect(directory, directory, config)
     assert ("domain", "c2.example.org", "config") in selected
     assert ("ip", "8.8.4.4", "config") in selected
-    assert not any(v == "203.0.113.9" for _, v, _ in selected)  # documentation range: not public
+    assert not any(
+        v == "203.0.113.9" for _, v, _ in selected
+    )  # documentation range: not public
     got = assessment("suspicious", [], config_families=["remcos"])
     assert (got["label"], got["basis"]) == ("malicious", "malware config")
 
@@ -770,3 +869,34 @@ def test_doh_safety(setup, monkeypatch, failure):
         monkeypatch.setattr(cache, "reserve", lambda *args: False)
     assert resolve(["c2.example"], config, cache) == []
     assert cache.get("doh", "domain", "c2.example") is None
+
+
+def test_hybridanalysis_takes_the_worst_finished_verdict():
+    provider = next(p for p in providers() if p.id == "hybridanalysis")
+    url, data, _ = provider.request("sha256", HASH)
+    assert data is None and url.endswith(f"/api/v2/search/hash?hash={HASH}")
+    doc = {
+        "sha256s": [HASH],
+        "reports": [
+            {
+                "state": "ERROR",
+                "verdict": None,
+                "environment_description": "Windows 11 64 bit",
+            },
+            {
+                "state": "SUCCESS",
+                "verdict": "no specific threat",
+                "environment_description": "Linux",
+            },
+            {
+                "state": "SUCCESS",
+                "verdict": "suspicious",
+                "environment_description": "Windows 10 64 bit",
+            },
+        ],
+    }
+    result = provider.parse(doc, "sha256", HASH)
+    assert result["verdict"] == "suspicious"
+    assert result["details"]["finished"] == 2 and result["details"]["reports"] == 3
+    only_errors = {"sha256s": [HASH], "reports": [{"state": "ERROR", "verdict": None}]}
+    assert provider.parse(only_errors, "sha256", HASH)["verdict"] == "unknown"

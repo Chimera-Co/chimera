@@ -8,7 +8,7 @@ its key is skipped and the console shows **No API key**. Each key is one file on
 | VirusTotal | `/etc/chimera/keys/virustotal` | yes | <https://www.virustotal.com/gui/join-us> | hashes, domains, IPs, URLs |
 | AlienVault OTX | `/etc/chimera/keys/otx` | yes | <https://otx.alienvault.com/> | hashes, domains, IPs, URLs |
 | AbuseIPDB | `/etc/chimera/keys/abuseipdb` | yes | <https://www.abuseipdb.com/register> | IPs |
-| Hybrid Analysis | `/etc/chimera/keys/hybridanalysis` | yes | <https://www.hybrid-analysis.com/signup> | hashes |
+| Hybrid Analysis | `/etc/chimera/keys/hybridanalysis` | yes | <https://hybrid-analysis.com/signup> | hashes |
 | GreyNoise | `/etc/chimera/keys/greynoise` | optional (community API works without) | <https://viz.greynoise.io/signup> | IPs |
 | RIPEstat | – | no key | – | IP routing context (ASN, holder, prefix) |
 | urlscan.io | `/etc/chimera/keys/urlscan` | optional | <https://urlscan.io/user/signup> | domains |
