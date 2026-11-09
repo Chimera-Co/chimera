@@ -102,8 +102,8 @@ Results recorded on the development host; each links to its evidence.
 - **Hardening.** On the Windows golden image the PERDEDOR v1 check score rose from 89.48 to 100.0 and al-khaser
   detections fell from 26–27 to 20 per scan ([design and remaining detections](docs/chimera/hardening-design.md)).
   PERDEDOR v2 scores far more strictly: its exposure score estimates the share of known evasive malware that would run
-  normally, and the same image with DRAKVUF attached scores 22.8/100, with firmware, hardware and network identity the
-  largest remaining losses ([how the score works](https://chimera-co.github.io/perdedor/SCORING/)); on the Linux image
+  normally. With DRAKVUF attached the image scored 22.8/100, and 24.6 after usage traces were added (9 Nov). Firmware,
+  hardware and network identity are the largest remaining losses ([how the score works](https://chimera-co.github.io/perdedor/SCORING/)); on the Linux image
   the evasion score rose from 70.44 to 97.42 ([Linux sandbox](docs/chimera/linux-sandbox.md)).
 - **Limits** are written down too: [limitations and future scope](https://chimera-co.github.io/chimera/#/docs/limitations).
 
