@@ -99,8 +99,11 @@ Results recorded on the development host; each links to its evidence.
 - **Reliability.** A guest freeze under DRAKVUF's altp2m was traced to a deadlock between Xen and QEMU and fixed with a
   small Xen patch ([root cause](docs/chimera/vm-freeze-root-cause.md)); a DRAKVUF use-after-free found here was fixed
   upstream ([tklengyel/drakvuf#1886](https://github.com/tklengyel/drakvuf/pull/1886)).
-- **Hardening.** On the Windows golden image the PERDEDOR score rose from 89.48 to 100.0 and al-khaser detections fell
-  from 26–27 to 20 per scan ([design and remaining detections](docs/chimera/hardening-design.md)); on the Linux image
+- **Hardening.** On the Windows golden image the PERDEDOR v1 check score rose from 89.48 to 100.0 and al-khaser
+  detections fell from 26–27 to 20 per scan ([design and remaining detections](docs/chimera/hardening-design.md)).
+  PERDEDOR v2 scores far more strictly: its exposure score estimates the share of known evasive malware that would run
+  normally, and the same image with DRAKVUF attached scores 22.8/100, with firmware, hardware and network identity the
+  largest remaining losses ([how the score works](https://chimera-co.github.io/perdedor/SCORING/)); on the Linux image
   the evasion score rose from 70.44 to 97.42 ([Linux sandbox](docs/chimera/linux-sandbox.md)).
 - **Limits** are written down too: [limitations and future scope](https://chimera-co.github.io/chimera/#/docs/limitations).
 
